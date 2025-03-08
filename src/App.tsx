@@ -15,6 +15,9 @@ import Projects from "./pages/Projects";
 import ProjectLayout from "./components/layout/ProjectLayout";
 import ProjectDetail from "./pages/ProjectDetail";
 import BurndownChart from "./pages/BurndownChart";
+import SprintBoard from "./pages/SprintBoard";
+import EditSprint from "./pages/EditSprint";
+import ProjectTimeline from "./pages/ProjectTimeline";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -73,14 +76,19 @@ const App = () => (
               {/* Protected routes */}
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
+              <Route path="/collaborations" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
               
               {/* Project routes */}
               <Route path="/projects/:projectId" element={<ProtectedRoute><ProjectLayout /></ProtectedRoute>}>
                 <Route index element={<ProjectDetail />} />
                 <Route path="backlog" element={<div>Product Backlog (Coming Soon)</div>} />
-                <Route path="timeline" element={<div>Timeline (Coming Soon)</div>} />
+                <Route path="timeline" element={<ProjectTimeline />} />
                 <Route path="burndown" element={<BurndownChart />} />
               </Route>
+              
+              {/* Sprint routes */}
+              <Route path="/sprints/:sprintId" element={<ProtectedRoute><SprintBoard /></ProtectedRoute>} />
+              <Route path="/projects/:projectId/sprint/:sprintId/edit" element={<ProtectedRoute><EditSprint /></ProtectedRoute>} />
               
               {/* 404 route */}
               <Route path="*" element={<NotFound />} />

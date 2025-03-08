@@ -6,6 +6,7 @@ import { Check } from "lucide-react";
 import { toast } from "sonner";
 
 const Register: React.FC = () => {
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -21,13 +22,19 @@ const Register: React.FC = () => {
       return;
     }
     
+    if (!username.trim()) {
+      toast.error("Username is required");
+      return;
+    }
+    
     setIsLoading(true);
     
     try {
-      await register(email, password);
+      await register(username, email, password);
+      toast.success("Registration successful!");
       navigate("/");
-    } catch (error) {
-      toast.error("Registration failed");
+    } catch (error: any) {
+      toast.error(error.message || "Registration failed");
       console.error(error);
     } finally {
       setIsLoading(false);
@@ -47,6 +54,21 @@ const Register: React.FC = () => {
           <p className="text-scrum-text-secondary text-center mb-6">Sign up to start managing your projects</p>
           
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="username" className="block mb-2 text-sm">
+                Username
+              </label>
+              <input
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="scrum-input"
+                placeholder="yourname"
+                required
+              />
+            </div>
+            
             <div>
               <label htmlFor="email" className="block mb-2 text-sm">
                 Email

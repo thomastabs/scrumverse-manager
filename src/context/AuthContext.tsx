@@ -1,13 +1,15 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { User } from "@/types";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  login: (emailOrUsername: string, password: string) => Promise<void>;
+  register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -35,34 +37,80 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
   }, []);
 
-  // Mock auth functions for now
-  const login = async (email: string, password: string) => {
-    // In a real app, you would validate credentials with a backend
-    if (email && password) {
-      const mockUser: User = {
-        id: "user-1",
-        email,
-        name: email.split("@")[0],
-      };
-      setUser(mockUser);
-      localStorage.setItem("scrumUser", JSON.stringify(mockUser));
-    } else {
-      throw new Error("Invalid credentials");
+  const register = async (username: string, email: string, password: string) => {
+    try {
+      // Check if email already exists
+      const { data: existingEmail } = await supabase
+        .from('users')
+        .select('email')
+        .eq('email', email)
+        .single();
+
+      if (existingEmail) {
+        throw new Error('Email already in use');
+      }
+
+      // Check if username already exists
+      const { data: existingUsername } = await supabase
+        .from('users')
+        .select('username')
+        .eq('username', username)
+        .single();
+
+      if (existingUsername) {
+        throw new Error('Username already taken');
+      }
+
+      // Insert new user
+      const { data, error } = await supabase
+        .from('users')
+        .insert([{ username, email, password }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        const newUser: User = {
+          id: data.id,
+          username: data.username,
+          email: data.email,
+        };
+        
+        setUser(newUser);
+        localStorage.setItem("scrumUser", JSON.stringify(newUser));
+      }
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      throw new Error(error.message || 'Failed to register');
     }
   };
 
-  const register = async (email: string, password: string) => {
-    // In a real app, you would register with a backend
-    if (email && password) {
-      const mockUser: User = {
-        id: "user-1",
-        email,
-        name: email.split("@")[0],
+  const login = async (emailOrUsername: string, password: string) => {
+    try {
+      // Try to find user by email or username
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .or(`email.eq.${emailOrUsername},username.eq.${emailOrUsername}`)
+        .eq('password', password)
+        .single();
+
+      if (error || !data) {
+        throw new Error('Invalid credentials');
+      }
+
+      const loggedInUser: User = {
+        id: data.id,
+        username: data.username,
+        email: data.email,
       };
-      setUser(mockUser);
-      localStorage.setItem("scrumUser", JSON.stringify(mockUser));
-    } else {
-      throw new Error("Invalid credentials");
+      
+      setUser(loggedInUser);
+      localStorage.setItem("scrumUser", JSON.stringify(loggedInUser));
+    } catch (error: any) {
+      console.error('Login error:', error);
+      throw new Error('Invalid credentials');
     }
   };
 

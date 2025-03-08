@@ -6,7 +6,7 @@ import { Check } from "lucide-react";
 import { toast } from "sonner";
 
 const Login: React.FC = () => {
-  const [email, setEmail] = useState("");
+  const [emailOrUsername, setEmailOrUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
@@ -17,7 +17,7 @@ const Login: React.FC = () => {
     setIsLoading(true);
     
     try {
-      await login(email, password);
+      await login(emailOrUsername, password);
       navigate("/");
     } catch (error) {
       toast.error("Invalid credentials");
@@ -41,16 +41,16 @@ const Login: React.FC = () => {
           
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="email" className="block mb-2 text-sm">
-                Email
+              <label htmlFor="emailOrUsername" className="block mb-2 text-sm">
+                Email or Username
               </label>
               <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="emailOrUsername"
+                type="text"
+                value={emailOrUsername}
+                onChange={(e) => setEmailOrUsername(e.target.value)}
                 className="scrum-input"
-                placeholder="your@email.com"
+                placeholder="your@email.com or username"
                 required
               />
             </div>

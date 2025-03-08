@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Project, Sprint, Task, BurndownData } from "@/types";
 import { useAuth } from "./AuthContext";
@@ -58,11 +57,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [burndownData, setBurndownData] = useState<Record<string, BurndownData[]>>({});
 
   useEffect(() => {
-    // Load data from database when user changes
     if (user) {
       fetchProjects();
     } else {
-      // Clear data when logged out
       setProjects([]);
       setSprints([]);
       setTasks([]);
@@ -96,10 +93,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         setProjects(formattedProjects);
         
-        // For each project, fetch sprints and tasks
         formattedProjects.forEach(project => {
           fetchSprints(project.id);
-          fetchTasks(project.id);
         });
       }
     } catch (error) {
@@ -134,10 +129,12 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }));
 
         setSprints(prev => {
-          // Remove existing sprints for this project
           const filtered = prev.filter(s => s.projectId !== projectId);
-          // Add new sprints
           return [...filtered, ...formattedSprints];
+        });
+        
+        formattedSprints.forEach(sprint => {
+          fetchTasksBySprint(sprint.id);
         });
       }
     } catch (error) {
@@ -145,18 +142,18 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
-  const fetchTasks = async (projectId: string) => {
+  const fetchTasksBySprint = async (sprintId: string) => {
     if (!user) return;
 
     try {
       const { data, error } = await supabase
         .from('tasks')
         .select('*')
-        .eq('project_id', projectId)
+        .eq('sprint_id', sprintId)
         .eq('user_id', user.id);
 
       if (error) {
-        console.error('Error fetching tasks:', error);
+        console.error('Error fetching tasks for sprint:', error);
         return;
       }
 
@@ -170,19 +167,12 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           assignedTo: task.assign_to,
           storyPoints: task.story_points,
           createdAt: task.created_at,
-          updatedAt: task.created_at // Using created_at for updatedAt as well since it's not in the schema
+          updatedAt: task.created_at
         }));
 
         setTasks(prev => {
-          // Filter out tasks for this project
-          const projectSprintIds = sprints
-            .filter(s => s.projectId === projectId)
-            .map(s => s.id);
-          
-          const filteredTasks = prev.filter(t => !projectSprintIds.includes(t.sprintId));
-          
-          // Add new tasks
-          return [...filteredTasks, ...formattedTasks];
+          const filtered = prev.filter(t => t.sprintId !== sprintId);
+          return [...filtered, ...formattedTasks];
         });
       }
     } catch (error) {
@@ -190,10 +180,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
-  // Generate a random ID for client-side use before DB insertion
   const generateId = () => `id-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
-  // Project CRUD operations
   const addProject = async (project: Omit<Project, "id" | "createdAt" | "updatedAt">) => {
     if (!user) throw new Error('User not authenticated');
 
@@ -224,7 +212,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       setProjects(prev => [...prev, newProject]);
       
-      // Create default burndown data for the project
       setBurndownData(prev => ({
         ...prev,
         [newProject.id]: generateDefaultBurndownData(),
@@ -285,14 +272,12 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       setProjects(prev => prev.filter(p => p.id !== id));
       
-      // Also delete associated sprints and tasks
       const projectSprints = sprints.filter(s => s.projectId === id);
       const sprintIds = projectSprints.map(s => s.id);
       
       setSprints(prev => prev.filter(s => s.projectId !== id));
       setTasks(prev => prev.filter(t => !sprintIds.includes(t.sprintId)));
       
-      // Delete burndown data
       setBurndownData(prev => {
         const newData = { ...prev };
         delete newData[id];
@@ -304,7 +289,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
-  // Sprint CRUD operations
   const addSprint = async (sprint: Omit<Sprint, "id">) => {
     if (!user) throw new Error('User not authenticated');
 
@@ -395,7 +379,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       setSprints(prev => prev.filter(s => s.id !== id));
       
-      // Also delete associated tasks
       setTasks(prev => prev.filter(t => t.sprintId !== id));
     } catch (error) {
       console.error('Error deleting sprint:', error);
@@ -406,12 +389,10 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const getSprintsByProject = (projectId: string) => 
     sprints.filter((s) => s.projectId === projectId);
 
-  // Task CRUD operations
   const addTask = async (task: Omit<Task, "id" | "createdAt" | "updatedAt">) => {
     if (!user) throw new Error('User not authenticated');
 
     try {
-      // Get the project_id from the sprint
       const sprint = getSprint(task.sprintId);
       if (!sprint) throw new Error('Sprint not found');
 
@@ -443,12 +424,11 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         assignedTo: data.assign_to,
         storyPoints: data.story_points,
         createdAt: data.created_at,
-        updatedAt: data.created_at // Using created_at for updatedAt
+        updatedAt: data.created_at
       };
 
       setTasks(prev => [...prev, newTask]);
       
-      // Update burndown data
       updateBurndownData(
         sprint.projectId,
         task.storyPoints || 0,
@@ -494,7 +474,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       setTasks(prev => prev.map(t => t.id === id ? updatedTask : t));
       
-      // Update burndown data if status changed to done
       if (
         existingTask.status !== "done" && 
         updatedTask.status === "done" &&
@@ -532,10 +511,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       if (error) throw error;
 
-      // Update UI
       setTasks(prev => prev.filter(t => t.id !== id));
       
-      // Update burndown data
       const sprint = getSprint(taskToDelete.sprintId);
       if (sprint && taskToDelete.storyPoints) {
         updateBurndownData(
@@ -553,12 +530,10 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const getTasksBySprint = (sprintId: string) => 
     tasks.filter((t) => t.sprintId === sprintId);
 
-  // Burndown chart functions
   const generateDefaultBurndownData = (): BurndownData[] => {
     const data: BurndownData[] = [];
     const today = new Date();
     
-    // Generate 21 days of data (3 weeks)
     for (let i = 0; i < 21; i++) {
       const date = new Date(today);
       date.setDate(date.getDate() + i);
@@ -584,9 +559,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const projectData = prev[projectId] || generateDefaultBurndownData();
       const today = new Date().toISOString().split("T")[0];
       
-      // Update data based on action
       const updatedData = projectData.map((item) => {
-        // For future dates, update ideal line
         if (item.date >= today) {
           if (action === "add") {
             return { ...item, ideal: item.ideal + points };
@@ -595,7 +568,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           }
         }
         
-        // For today, update actual line
         if (item.date === today) {
           if (action === "complete") {
             return { ...item, actual: item.actual + points };

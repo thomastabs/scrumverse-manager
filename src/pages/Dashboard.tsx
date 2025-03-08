@@ -12,6 +12,11 @@ const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const { projects } = useProjects();
 
+  // Get the 3 most recent projects
+  const recentProjects = [...projects]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 3);
+
   return (
     <div className="min-h-screen pt-16 animate-fade-in">
       <Navbar />
@@ -40,20 +45,20 @@ const Dashboard: React.FC = () => {
           <div className="bg-scrum-card border border-scrum-border rounded-lg p-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
               <div>
-                <h2 className="text-xl font-bold">My Projects</h2>
-                <p className="text-scrum-text-secondary">Manage your agile projects</p>
+                <h2 className="text-xl font-bold">Recent Projects</h2>
+                <p className="text-scrum-text-secondary">Your most recently created projects</p>
               </div>
               <NewProjectButton />
             </div>
 
-            {projects.length === 0 ? (
+            {recentProjects.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-scrum-text-secondary mb-4">You don't have any projects yet</p>
                 <NewProjectButton />
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {projects.map((project) => (
+                {recentProjects.map((project) => (
                   <ProjectCard key={project.id} project={project} />
                 ))}
               </div>

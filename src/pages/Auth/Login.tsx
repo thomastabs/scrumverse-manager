@@ -8,82 +8,86 @@ import { toast } from "sonner";
 const Login: React.FC = () => {
   const [emailOrUsername, setEmailOrUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     
+    if (!emailOrUsername.trim() || !password.trim()) {
+      toast.error("All fields are required");
+      return;
+    }
+    
+    setLoading(true);
     try {
       await login(emailOrUsername, password);
+      toast.success("Logged in successfully");
       navigate("/");
-    } catch (error) {
-      toast.error("Invalid credentials");
-      console.error(error);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to login");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-scrum-default py-12 px-4">
-      <div className="max-w-md w-full">
-        <div className="flex items-center justify-center gap-2 mb-2">
-          <Check className="h-6 w-6 text-white" />
-          <h1 className="text-xl font-semibold text-white">Agile Sprint Manager</h1>
+    <div className="min-h-screen bg-scrum-bg flex flex-col items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        <div className="flex items-start w-full mb-8">
+          <Link to="/" className="flex items-center gap-2">
+            <Check className="h-6 w-6 text-white" />
+            <h1 className="text-xl font-semibold text-white">Scrumify Hub</h1>
+          </Link>
         </div>
         
-        <div className="bg-scrum-card border border-scrum-border rounded-lg p-8 shadow-lg animate-fade-up">
-          <h2 className="text-2xl font-bold mb-2 text-center">Welcome Back</h2>
-          <p className="text-scrum-text-secondary text-center mb-6">Sign in to your account to continue</p>
+        <div className="bg-scrum-card border border-scrum-border rounded-lg p-8 w-full">
+          <h2 className="text-2xl font-bold mb-6">Sign In</h2>
           
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="emailOrUsername" className="block mb-2 text-sm">
+          <form onSubmit={handleSubmit}>
+            <div className="mb-4">
+              <label className="block mb-2 text-sm">
                 Email or Username
               </label>
               <input
-                id="emailOrUsername"
                 type="text"
                 value={emailOrUsername}
                 onChange={(e) => setEmailOrUsername(e.target.value)}
                 className="scrum-input"
-                placeholder="your@email.com or username"
+                placeholder="Enter your email or username"
                 required
               />
             </div>
             
-            <div>
-              <label htmlFor="password" className="block mb-2 text-sm">
+            <div className="mb-6">
+              <label className="block mb-2 text-sm">
                 Password
               </label>
               <input
-                id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="scrum-input"
-                placeholder="••••••••"
+                placeholder="Enter your password"
                 required
               />
             </div>
             
             <button
               type="submit"
-              className="scrum-button w-full py-3"
-              disabled={isLoading}
+              className="scrum-button w-full"
+              disabled={loading}
             >
-              {isLoading ? "Signing In..." : "Sign In"}
+              {loading ? "Signing In..." : "Sign In"}
             </button>
           </form>
           
           <div className="mt-6 text-center">
-            <p className="text-scrum-text-secondary">
+            <p className="text-sm text-scrum-text-secondary">
               Don't have an account?{" "}
-              <Link to="/register" className="text-white hover:underline">
-                Sign up
+              <Link to="/register" className="text-primary hover:underline">
+                Sign Up
               </Link>
             </p>
           </div>

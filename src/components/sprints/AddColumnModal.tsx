@@ -15,6 +15,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ onClose, onAdd }) => {
     
     if (columnName.trim()) {
       onAdd(columnName.trim());
+      setColumnName("");
     }
   };
   

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useProjects } from "@/context/ProjectContext";
@@ -32,10 +31,8 @@ const SprintBoard: React.FC = () => {
   useEffect(() => {
     if (!sprint) return;
     
-    // Initialize columns
     const initialColumns: {[key: string]: {title: string, taskIds: string[]}} = {};
     
-    // Ensure default columns exist
     ["todo", "in-progress", "done"].forEach(colId => {
       initialColumns[colId] = {
         title: colId === "todo" ? "TO DO" : 
@@ -45,7 +42,6 @@ const SprintBoard: React.FC = () => {
       };
     });
     
-    // Add any custom columns from tasks
     const customStatuses = new Set<string>();
     tasks.forEach(task => {
       if (!["todo", "in-progress", "done"].includes(task.status)) {
@@ -60,7 +56,6 @@ const SprintBoard: React.FC = () => {
       };
     });
     
-    // Group tasks by status
     tasks.forEach(task => {
       if (initialColumns[task.status]) {
         initialColumns[task.status].taskIds.push(task.id);
@@ -72,7 +67,6 @@ const SprintBoard: React.FC = () => {
       }
     });
     
-    // Update column order to include all columns
     const newColumnOrder = [...columnOrder];
     Object.keys(initialColumns).forEach(colId => {
       if (!newColumnOrder.includes(colId)) {
@@ -87,10 +81,8 @@ const SprintBoard: React.FC = () => {
   const handleDragEnd = async (result: any) => {
     const { destination, source, draggableId } = result;
     
-    // Dropped outside a droppable area
     if (!destination) return;
     
-    // Dropped in the same position
     if (
       destination.droppableId === source.droppableId && 
       destination.index === source.index
@@ -98,11 +90,9 @@ const SprintBoard: React.FC = () => {
       return;
     }
     
-    // Get source and destination column
     const sourceColumn = columns[source.droppableId];
     const destColumn = columns[destination.droppableId];
     
-    // Moving within the same column
     if (source.droppableId === destination.droppableId) {
       const newTaskIds = Array.from(sourceColumn.taskIds);
       newTaskIds.splice(source.index, 1);
@@ -118,13 +108,10 @@ const SprintBoard: React.FC = () => {
         [source.droppableId]: newColumn,
       });
     } 
-    // Moving to a different column
     else {
-      // Remove from source column
       const sourceTaskIds = Array.from(sourceColumn.taskIds);
       sourceTaskIds.splice(source.index, 1);
       
-      // Add to destination column
       const destTaskIds = Array.from(destColumn.taskIds);
       destTaskIds.splice(destination.index, 0, draggableId);
       
@@ -140,20 +127,17 @@ const SprintBoard: React.FC = () => {
         },
       });
       
-      // Update task status in database
       try {
         await updateTask(draggableId, {
           status: destination.droppableId
         });
         
-        // Check if all tasks are in DONE column
         if (destination.droppableId === "done") {
           const allTasks = tasks;
           const remainingTasks = allTasks.filter(
             task => task.id !== draggableId && task.status !== "done"
           );
           
-          // If all tasks are now done, prompt to complete the sprint
           if (remainingTasks.length === 0 && sprint?.status === "in-progress") {
             if (window.confirm("All tasks are completed! Would you like to mark this sprint as completed?")) {
               await updateSprint(sprint.id, { status: "completed" });
@@ -173,7 +157,6 @@ const SprintBoard: React.FC = () => {
     
     const columnId = columnName.toLowerCase().replace(/\s+/g, '-');
     
-    // Check if column already exists
     if (columns[columnId]) {
       toast.error("A column with this name already exists");
       return;
@@ -193,13 +176,11 @@ const SprintBoard: React.FC = () => {
   };
   
   const handleRemoveColumn = (columnId: string) => {
-    // Cannot remove default columns
     if (["todo", "in-progress", "done"].includes(columnId)) {
       toast.error("Cannot remove default columns");
       return;
     }
     
-    // Check if column has tasks
     if (columns[columnId]?.taskIds.length > 0) {
       toast.error("Cannot remove a column that contains tasks");
       return;
@@ -420,7 +401,6 @@ const SprintBoard: React.FC = () => {
   );
 };
 
-// Separate component for creating new tasks
 const NewTaskForm: React.FC<{
   sprintId: string;
   initialStatus: string;

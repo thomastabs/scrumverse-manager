@@ -8,12 +8,27 @@ import NewSprintButton from "@/components/sprints/NewSprintButton";
 
 const ProjectDetail: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
-  const { getSprintsByProject } = useProjects();
+  const { getProject, getSprintsByProject } = useProjects();
   const navigate = useNavigate();
   
   if (!projectId) return null;
   
+  const project = getProject(projectId);
   const sprints = getSprintsByProject(projectId);
+  
+  if (!project) {
+    return (
+      <div className="text-center py-12">
+        <h2 className="text-xl font-semibold mb-4">Project not found</h2>
+        <button
+          onClick={() => navigate("/projects")}
+          className="scrum-button"
+        >
+          Back to Projects
+        </button>
+      </div>
+    );
+  }
   
   const plannedSprints = sprints.filter(
     (sprint) => sprint.status === "planned"

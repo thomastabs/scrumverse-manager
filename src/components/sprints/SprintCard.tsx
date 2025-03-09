@@ -6,14 +6,14 @@ import { CalendarDays, Edit } from "lucide-react";
 
 interface SprintCardProps {
   sprint: Sprint;
-  onEdit: () => void;
-  onViewBoard: () => void;
+  onEdit?: () => void;
+  onViewBoard?: () => void;
 }
 
 const SprintCard: React.FC<SprintCardProps> = ({ 
   sprint, 
-  onEdit, 
-  onViewBoard 
+  onEdit = () => {}, 
+  onViewBoard = () => {}
 }) => {
   const getStatusColor = () => {
     switch (sprint.status) {

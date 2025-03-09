@@ -84,11 +84,12 @@ const App = () => (
                 <Route path="backlog" element={<div>Product Backlog (Coming Soon)</div>} />
                 <Route path="timeline" element={<ProjectTimeline />} />
                 <Route path="burndown" element={<BurndownChart />} />
+                <Route path="sprint/:sprintId" element={<SprintBoard />} />
+                <Route path="sprint/:sprintId/edit" element={<EditSprint />} />
               </Route>
               
               {/* Sprint routes */}
               <Route path="/sprints/:sprintId" element={<ProtectedRoute><SprintBoard /></ProtectedRoute>} />
-              <Route path="/projects/:projectId/sprint/:sprintId/edit" element={<ProtectedRoute><EditSprint /></ProtectedRoute>} />
               
               {/* 404 route */}
               <Route path="*" element={<NotFound />} />

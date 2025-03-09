@@ -9,7 +9,7 @@ import { toast } from "sonner";
 
 const ProjectDetail: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
-  const { getSprintsByProject, getSprint, updateSprint, deleteSprint } = useProjects();
+  const { getProject, getSprintsByProject, getSprint, updateSprint, deleteSprint } = useProjects();
   const navigate = useNavigate();
   
   const [editingSprint, setEditingSprint] = useState<string | null>(null);
@@ -19,7 +19,23 @@ const ProjectDetail: React.FC = () => {
   const [endDate, setEndDate] = useState("");
   const [status, setStatus] = useState<"planned" | "in-progress" | "completed">("planned");
   
+  const project = getProject(projectId || "");
   const sprints = getSprintsByProject(projectId || "");
+  
+  // Redirect if project not found
+  if (!project) {
+    return (
+      <div className="text-center py-12">
+        <h2 className="text-xl font-bold mb-4">Project not found</h2>
+        <button
+          onClick={() => navigate("/")}
+          className="scrum-button"
+        >
+          Go to Dashboard
+        </button>
+      </div>
+    );
+  }
   
   const handleEditClick = (sprintId: string) => {
     const sprint = getSprint(sprintId);
@@ -89,7 +105,7 @@ const ProjectDetail: React.FC = () => {
               key={sprint.id}
               sprint={sprint}
               onEdit={() => handleEditClick(sprint.id)}
-              onViewBoard={() => navigate(`/sprints/${sprint.id}`)}
+              onViewBoard={() => navigate(`/projects/${sprint.projectId}/sprint/${sprint.id}`)}
             />
           ))}
         </div>

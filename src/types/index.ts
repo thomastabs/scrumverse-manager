@@ -31,7 +31,6 @@ export interface Task {
   sprintId: string;
   status: 'todo' | 'in-progress' | 'review' | 'done';
   assignedTo?: string;
-  priority?: 'low' | 'medium' | 'high';
   storyPoints?: number;
   createdAt: string;
   updatedAt: string;

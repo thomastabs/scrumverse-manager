@@ -3,21 +3,18 @@ import React from "react";
 import { format } from "date-fns";
 import { Sprint } from "@/types";
 import { CalendarDays, Edit } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 
 interface SprintCardProps {
   sprint: Sprint;
-  onEdit?: () => void;
-  onViewBoard?: () => void;
+  onEdit: () => void;
+  onViewBoard: () => void;
 }
 
 const SprintCard: React.FC<SprintCardProps> = ({ 
   sprint, 
-  onEdit,
+  onEdit, 
   onViewBoard 
 }) => {
-  const navigate = useNavigate();
-  
   const getStatusColor = () => {
     switch (sprint.status) {
       case "completed":
@@ -26,22 +23,6 @@ const SprintCard: React.FC<SprintCardProps> = ({
         return "bg-blue-500 text-white";
       default:
         return "bg-scrum-accent text-white";
-    }
-  };
-  
-  const handleEdit = () => {
-    if (onEdit) {
-      onEdit();
-    } else {
-      navigate(`/projects/${sprint.projectId}/sprint/${sprint.id}/edit`);
-    }
-  };
-  
-  const handleViewBoard = () => {
-    if (onViewBoard) {
-      onViewBoard();
-    } else {
-      navigate(`/projects/${sprint.projectId}/sprint/${sprint.id}`);
     }
   };
   
@@ -67,7 +48,7 @@ const SprintCard: React.FC<SprintCardProps> = ({
       
       <div className="flex items-center justify-between gap-2 mt-4">
         <button
-          onClick={handleEdit}
+          onClick={onEdit}
           className="scrum-button-secondary flex items-center gap-1"
         >
           <Edit className="h-4 w-4" />
@@ -75,7 +56,7 @@ const SprintCard: React.FC<SprintCardProps> = ({
         </button>
         
         <button
-          onClick={handleViewBoard}
+          onClick={onViewBoard}
           className="scrum-button"
         >
           View Board

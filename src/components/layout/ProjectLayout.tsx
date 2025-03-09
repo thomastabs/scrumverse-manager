@@ -19,7 +19,7 @@ const ProjectLayout: React.FC = () => {
           <h2 className="text-2xl font-bold mb-4">Project not found</h2>
           <button 
             onClick={() => navigate("/")}
-            className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-2"
+            className="scrum-button"
           >
             Go to Dashboard
           </button>

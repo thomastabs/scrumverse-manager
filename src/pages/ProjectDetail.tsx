@@ -1,91 +1,212 @@
 
-import React from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import React, { useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { useProjects } from "@/context/ProjectContext";
-import { Sprint } from "@/types";
 import SprintCard from "@/components/sprints/SprintCard";
 import NewSprintButton from "@/components/sprints/NewSprintButton";
+import { X, Edit } from "lucide-react";
+import { toast } from "sonner";
 
 const ProjectDetail: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
-  const { getProject, getSprintsByProject } = useProjects();
+  const { getSprintsByProject, getSprint, updateSprint, deleteSprint } = useProjects();
   const navigate = useNavigate();
   
-  if (!projectId) return null;
+  const [editingSprint, setEditingSprint] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [status, setStatus] = useState<"planned" | "in-progress" | "completed">("planned");
   
-  const project = getProject(projectId);
-  const sprints = getSprintsByProject(projectId);
+  const sprints = getSprintsByProject(projectId || "");
   
-  if (!project) {
-    return (
-      <div className="text-center py-12">
-        <h2 className="text-xl font-semibold mb-4">Project not found</h2>
-        <button
-          onClick={() => navigate("/projects")}
-          className="scrum-button"
-        >
-          Back to Projects
-        </button>
-      </div>
-    );
-  }
+  const handleEditClick = (sprintId: string) => {
+    const sprint = getSprint(sprintId);
+    if (sprint) {
+      setTitle(sprint.title);
+      setDescription(sprint.description);
+      setStartDate(sprint.startDate);
+      setEndDate(sprint.endDate);
+      setStatus(sprint.status);
+      setEditingSprint(sprintId);
+    }
+  };
   
-  const plannedSprints = sprints.filter(
-    (sprint) => sprint.status === "planned"
-  );
-  const inProgressSprints = sprints.filter(
-    (sprint) => sprint.status === "in-progress"
-  );
-  const completedSprints = sprints.filter(
-    (sprint) => sprint.status === "completed"
-  );
+  const handleUpdateSprint = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!editingSprint) return;
+    
+    try {
+      await updateSprint(editingSprint, {
+        title,
+        description,
+        startDate,
+        endDate,
+        status,
+      });
+      
+      toast.success("Sprint updated successfully");
+      setEditingSprint(null);
+    } catch (error) {
+      toast.error("Failed to update sprint");
+      console.error(error);
+    }
+  };
+  
+  const handleDeleteSprint = async () => {
+    if (!editingSprint) return;
+    
+    if (window.confirm("Are you sure you want to delete this sprint?")) {
+      try {
+        await deleteSprint(editingSprint);
+        toast.success("Sprint deleted successfully");
+        setEditingSprint(null);
+      } catch (error) {
+        toast.error("Failed to delete sprint");
+        console.error(error);
+      }
+    }
+  };
   
   return (
-    <div className="animate-fade-in">
+    <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold">Sprints</h2>
-        <NewSprintButton projectId={projectId} />
+        <h2 className="text-xl font-bold">Sprints</h2>
+        {projectId && <NewSprintButton projectId={projectId} />}
       </div>
-      
+
       {sprints.length === 0 ? (
-        <div className="bg-scrum-card border border-scrum-border rounded-lg p-8 text-center">
-          <p className="text-scrum-text-secondary mb-4">No sprints have been created yet</p>
-          <NewSprintButton projectId={projectId} variant="default" size="default" />
+        <div className="text-center py-12 bg-scrum-card border border-scrum-border rounded-lg">
+          <p className="text-scrum-text-secondary mb-4">No sprints created yet</p>
+          {projectId && <NewSprintButton projectId={projectId} />}
         </div>
       ) : (
-        <div className="space-y-8">
-          {inProgressSprints.length > 0 && (
-            <div>
-              <h3 className="text-lg font-medium mb-3 pl-1">In Progress</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {inProgressSprints.map((sprint) => (
-                  <SprintCard key={sprint.id} sprint={sprint} />
-                ))}
-              </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {sprints.map((sprint) => (
+            <SprintCard
+              key={sprint.id}
+              sprint={sprint}
+              onEdit={() => handleEditClick(sprint.id)}
+              onViewBoard={() => navigate(`/sprints/${sprint.id}`)}
+            />
+          ))}
+        </div>
+      )}
+      
+      {/* Edit Sprint Modal */}
+      {editingSprint && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in">
+          <div className="bg-scrum-card border border-scrum-border rounded-lg p-6 w-full max-w-lg animate-fade-up">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <Edit className="h-4 w-4" />
+                <span>Edit Sprint</span>
+              </h2>
+              <button
+                onClick={() => setEditingSprint(null)}
+                className="text-scrum-text-secondary hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
-          )}
-          
-          {plannedSprints.length > 0 && (
-            <div>
-              <h3 className="text-lg font-medium mb-3 pl-1">Planned</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {plannedSprints.map((sprint) => (
-                  <SprintCard key={sprint.id} sprint={sprint} />
-                ))}
+            
+            <form onSubmit={handleUpdateSprint}>
+              <div className="mb-4">
+                <label className="block mb-2 text-sm">
+                  Sprint Title <span className="text-destructive">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="scrum-input"
+                  required
+                />
               </div>
-            </div>
-          )}
-          
-          {completedSprints.length > 0 && (
-            <div>
-              <h3 className="text-lg font-medium mb-3 pl-1">Completed</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {completedSprints.map((sprint) => (
-                  <SprintCard key={sprint.id} sprint={sprint} />
-                ))}
+              
+              <div className="mb-4">
+                <label className="block mb-2 text-sm">
+                  Description
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="scrum-input"
+                />
               </div>
-            </div>
-          )}
+              
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block mb-2 text-sm">
+                    Start Date <span className="text-destructive">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="scrum-input"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className="block mb-2 text-sm">
+                    End Date <span className="text-destructive">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="scrum-input"
+                    required
+                  />
+                </div>
+              </div>
+              
+              <div className="mb-6">
+                <label className="block mb-2 text-sm">
+                  Status
+                </label>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as any)}
+                  className="scrum-input"
+                >
+                  <option value="planned">Planned</option>
+                  <option value="in-progress">In Progress</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={handleDeleteSprint}
+                  className="text-destructive hover:text-destructive/80 transition-colors"
+                >
+                  Delete Sprint
+                </button>
+                
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingSprint(null)}
+                    className="scrum-button-secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="scrum-button"
+                  >
+                    Update Sprint
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

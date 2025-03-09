@@ -29,7 +29,7 @@ export interface Task {
   title: string;
   description?: string;
   sprintId: string;
-  status: 'todo' | 'in-progress' | 'review' | 'done' | 'backlog';
+  status: 'todo' | 'in-progress' | 'review' | 'done';
   assignedTo?: string;
   priority?: 'low' | 'medium' | 'high';
   storyPoints?: number;

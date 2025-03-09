@@ -6,15 +6,9 @@ import { toast } from "sonner";
 
 interface NewSprintButtonProps {
   projectId: string;
-  variant?: string;
-  size?: string;
 }
 
-const NewSprintButton: React.FC<NewSprintButtonProps> = ({ 
-  projectId,
-  variant = "outline",
-  size = "sm" 
-}) => {
+const NewSprintButton: React.FC<NewSprintButtonProps> = ({ projectId }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -66,7 +60,7 @@ const NewSprintButton: React.FC<NewSprintButtonProps> = ({
     <>
       <button
         onClick={() => setIsModalOpen(true)}
-        className={`scrum-button flex items-center gap-2 ${variant === "default" ? "" : "scrum-button-secondary"} ${size === "default" ? "" : "text-sm px-3 py-1"}`}
+        className="scrum-button flex items-center gap-2"
       >
         <Plus className="h-4 w-4" />
         <span>New Sprint</span>

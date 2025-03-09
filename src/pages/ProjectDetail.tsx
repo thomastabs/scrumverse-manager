@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useProjects } from "@/context/ProjectContext";
 import SprintCard from "@/components/sprints/SprintCard";
@@ -28,10 +28,10 @@ const ProjectDetail: React.FC = () => {
       <div className="text-center py-12">
         <h2 className="text-xl font-bold mb-4">Project not found</h2>
         <button
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/projects")}
           className="scrum-button"
         >
-          Go to Dashboard
+          Go to Projects
         </button>
       </div>
     );
@@ -86,6 +86,10 @@ const ProjectDetail: React.FC = () => {
     }
   };
   
+  const handleViewSprintBoard = (sprintId: string) => {
+    navigate(`/projects/${project.id}/sprint/${sprintId}`);
+  };
+  
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -96,7 +100,7 @@ const ProjectDetail: React.FC = () => {
       {sprints.length === 0 ? (
         <div className="text-center py-12 bg-scrum-card border border-scrum-border rounded-lg">
           <p className="text-scrum-text-secondary mb-4">No sprints created yet</p>
-          {projectId && <NewSprintButton projectId={projectId} />}
+          {projectId && <div className="flex justify-center"><NewSprintButton projectId={projectId} /></div>}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -105,7 +109,7 @@ const ProjectDetail: React.FC = () => {
               key={sprint.id}
               sprint={sprint}
               onEdit={() => handleEditClick(sprint.id)}
-              onViewBoard={() => navigate(`/projects/${sprint.projectId}/sprint/${sprint.id}`)}
+              onViewBoard={() => handleViewSprintBoard(sprint.id)}
             />
           ))}
         </div>

@@ -199,6 +199,23 @@ const SprintBoard: React.FC = () => {
     setCreatingTaskInColumn(columnId);
   };
   
+  const handleCompleteButtonClick = async () => {
+    if (!sprint) return;
+    
+    try {
+      if (sprint.status === 'completed') {
+        toast.info("Sprint is already completed");
+        return;
+      }
+      
+      await updateSprint(sprint.id, { status: "completed" });
+      toast.success("Sprint marked as completed");
+    } catch (error) {
+      toast.error("Failed to update sprint status");
+      console.error(error);
+    }
+  };
+  
   if (!sprint) {
     return (
       <div className="text-center py-12">
@@ -214,22 +231,6 @@ const SprintBoard: React.FC = () => {
   }
   
   const allTasksCompleted = tasks.length > 0 && tasks.every(task => task.status === "done");
-  
-  const handleCompleteSprint = async () => {
-    if (!allTasksCompleted) {
-      if (!window.confirm("Not all tasks are completed. Are you sure you want to complete this sprint?")) {
-        return;
-      }
-    }
-    
-    try {
-      await updateSprint(sprint.id, { status: "completed" });
-      toast.success("Sprint marked as completed!");
-    } catch (error) {
-      console.error("Error completing sprint:", error);
-      toast.error("Failed to complete sprint");
-    }
-  };
   
   const handleEditSprint = () => {
     if (projectId) {
@@ -266,7 +267,7 @@ const SprintBoard: React.FC = () => {
               </button>
               
               <button
-                onClick={handleCompleteSprint}
+                onClick={handleCompleteButtonClick}
                 className={`scrum-button ${allTasksCompleted ? "bg-success hover:bg-success/90" : ""}`}
                 disabled={sprint.status === "completed"}
               >

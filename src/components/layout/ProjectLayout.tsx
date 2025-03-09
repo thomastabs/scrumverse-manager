@@ -4,6 +4,7 @@ import { Outlet, useParams, useNavigate } from "react-router-dom";
 import { useProjects } from "@/context/ProjectContext";
 import NavLink from "@/components/ui/NavLink";
 import { ArrowLeft, LayoutGrid, List, LineChart, Edit, Trash } from "lucide-react";
+import { toast } from "sonner";
 
 const ProjectLayout: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -30,8 +31,14 @@ const ProjectLayout: React.FC = () => {
   
   const handleDelete = async () => {
     if (window.confirm("Are you sure you want to delete this project?")) {
-      await deleteProject(project.id);
-      navigate("/");
+      try {
+        await deleteProject(project.id);
+        toast.success("Project deleted successfully");
+        navigate("/projects");
+      } catch (error) {
+        toast.error("Failed to delete project");
+        console.error(error);
+      }
     }
   };
   
@@ -39,7 +46,7 @@ const ProjectLayout: React.FC = () => {
     <div className="pt-16 min-h-screen animate-fade-in">
       <div className="px-6 py-4">
         <button 
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/projects")}
           className="flex items-center gap-1 text-scrum-text-secondary hover:text-white transition-colors mb-4"
         >
           <ArrowLeft className="h-4 w-4" />

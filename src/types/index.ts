@@ -30,7 +30,7 @@ export interface Task {
   title: string;
   description?: string;
   sprintId: string;
-  status: 'todo' | 'in-progress' | 'review' | 'done' | 'backlog';
+  status: 'todo' | 'in-progress' | 'review' | 'done' | 'backlog' | string;
   assignedTo?: string;
   storyPoints?: number;
   priority?: 'low' | 'medium' | 'high';
@@ -42,4 +42,11 @@ export interface BurndownData {
   date: string;
   ideal: number;
   actual: number;
+}
+
+export interface BoardColumn {
+  id: string;
+  title: string;
+  sprintId: string;
+  orderIndex: number;
 }

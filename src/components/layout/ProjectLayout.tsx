@@ -3,7 +3,7 @@ import React from "react";
 import { Outlet, useParams, useNavigate } from "react-router-dom";
 import { useProjects } from "@/context/ProjectContext";
 import NavLink from "@/components/ui/NavLink";
-import { ArrowLeft, LayoutGrid, List, LineChart, Edit, Trash } from "lucide-react";
+import { ArrowLeft, LayoutGrid, List, LineChart, Edit, Trash, Package } from "lucide-react";
 import { toast } from "sonner";
 
 const ProjectLayout: React.FC = () => {
@@ -87,7 +87,7 @@ const ProjectLayout: React.FC = () => {
             <span>Sprints</span>
           </NavLink>
           <NavLink to={`/projects/${project.id}/backlog`}>
-            <List className="h-4 w-4 mr-1" />
+            <Package className="h-4 w-4 mr-1" />
             <span>Product Backlog</span>
           </NavLink>
           <NavLink to={`/projects/${project.id}/timeline`}>

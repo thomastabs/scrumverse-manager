@@ -3,6 +3,7 @@ export interface User {
   id: string;
   email: string;
   name?: string;
+  username?: string;
 }
 
 export interface Project {
@@ -32,6 +33,7 @@ export interface Task {
   status: 'todo' | 'in-progress' | 'review' | 'done' | 'backlog';
   assignedTo?: string;
   storyPoints?: number;
+  priority?: 'low' | 'medium' | 'high';
   createdAt: string;
   updatedAt: string;
 }

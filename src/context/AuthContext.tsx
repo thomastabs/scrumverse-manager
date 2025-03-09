@@ -73,8 +73,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (data) {
         const newUser: User = {
           id: data.id,
-          username: data.username,
           email: data.email,
+          username: data.username,
         };
         
         setUser(newUser);
@@ -102,8 +102,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const loggedInUser: User = {
         id: data.id,
-        username: data.username,
         email: data.email,
+        username: data.username,
       };
       
       setUser(loggedInUser);

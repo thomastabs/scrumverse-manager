@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Project, Sprint, Task, BurndownData } from "@/types";
 import { useAuth } from "./AuthContext";
@@ -262,6 +263,38 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!user) throw new Error('User not authenticated');
 
     try {
+      // First, get all sprints for this project
+      const projectSprints = sprints.filter(s => s.projectId === id);
+      const sprintIds = projectSprints.map(s => s.id);
+      
+      // Then delete all tasks related to these sprints
+      if (sprintIds.length > 0) {
+        // Delete tasks associated with the sprints
+        const { error: tasksError } = await supabase
+          .from('tasks')
+          .delete()
+          .in('sprint_id', sprintIds)
+          .eq('user_id', user.id);
+          
+        if (tasksError) {
+          console.error('Error deleting tasks:', tasksError);
+          throw tasksError;
+        }
+        
+        // Delete all sprints for this project
+        const { error: sprintsError } = await supabase
+          .from('sprints')
+          .delete()
+          .eq('project_id', id)
+          .eq('user_id', user.id);
+          
+        if (sprintsError) {
+          console.error('Error deleting sprints:', sprintsError);
+          throw sprintsError;
+        }
+      }
+      
+      // Finally delete the project
       const { error } = await supabase
         .from('projects')
         .delete()
@@ -271,10 +304,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (error) throw error;
 
       setProjects(prev => prev.filter(p => p.id !== id));
-      
-      const projectSprints = sprints.filter(s => s.projectId === id);
-      const sprintIds = projectSprints.map(s => s.id);
-      
       setSprints(prev => prev.filter(s => s.projectId !== id));
       setTasks(prev => prev.filter(t => !sprintIds.includes(t.sprintId)));
       

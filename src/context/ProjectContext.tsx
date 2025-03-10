@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Project, Sprint, Task, BurndownData } from "@/types";
 import { useAuth } from "./AuthContext";
@@ -421,18 +422,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!user) throw new Error('User not authenticated');
 
     try {
-      // Handle tasks with null sprintId (backlog items)
-      let projectId = task.projectId;
-      
-      // If task has a sprintId (not null and not "backlog"), get projectId from the sprint
-      if (task.sprintId && task.sprintId !== "backlog") {
-        const sprint = getSprint(task.sprintId);
-        if (!sprint) throw new Error('Sprint not found');
-        projectId = sprint.projectId;
-      }
-      
-      // Ensure we have a projectId
-      if (!projectId) throw new Error('Project ID is required');
+      // Handle special case for backlog tasks
+      const isBacklogTask = task.sprintId === "backlog";
+      const projectId = isBacklogTask 
+        ? task.projectId // Use provided projectId for backlog tasks
+        : getSprint(task.sprintId)?.projectId; // Get projectId from sprint
+        
+      if (!projectId && !isBacklogTask) throw new Error('Sprint not found');
 
       const { data, error } = await supabase
         .from('tasks')
@@ -442,9 +438,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           status: task.status,
           assign_to: task.assignedTo,
           story_points: task.storyPoints,
-          sprint_id: task.sprintId === "backlog" ? null : task.sprintId,
+          sprint_id: task.sprintId,
           project_id: projectId,
-          priority: task.priority,
           user_id: user.id
         }])
         .select()
@@ -459,10 +454,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         title: data.title,
         description: data.description,
         sprintId: data.sprint_id,
-        projectId: data.project_id,
-        status: data.status as 'todo' | 'in-progress' | 'review' | 'done' | 'backlog',
+        status: data.status as 'todo' | 'in-progress' | 'review' | 'done',
         assignedTo: data.assign_to,
-        priority: data.priority,
         storyPoints: data.story_points,
         createdAt: data.created_at,
         updatedAt: data.created_at
@@ -470,10 +463,10 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       setTasks(prev => [...prev, newTask]);
       
-      if (task.sprintId && task.sprintId !== "backlog" && task.storyPoints) {
+      if (!isBacklogTask && projectId) {
         updateBurndownData(
           projectId,
-          task.storyPoints,
+          task.storyPoints || 0,
           "add"
         );
       }

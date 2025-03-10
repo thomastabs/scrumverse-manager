@@ -1,7 +1,6 @@
-
 import React, { useState } from "react";
 import { useProject } from "@/context/ProjectContext";
-import { useParams } from "react-router-dom";
+import { BacklogItem, Sprint } from "@/types";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -38,21 +37,20 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
-const ProductBacklog: React.FC = () => {
-  const { projectId } = useParams<{ projectId: string }>();
-  const { tasks, sprints, deleteTask, updateTask } = useProject();
+interface BacklogProps {
+  projectId: string;
+}
+
+const Backlog: React.FC<BacklogProps> = ({ projectId }) => {
+  const { backlogItems, sprints, deleteBacklogItem, moveBacklogItemToSprint } = useProject();
   const [showItemForm, setShowItemForm] = useState(false);
-  const [itemToEdit, setItemToEdit] = useState<any | null>(null);
+  const [itemToEdit, setItemToEdit] = useState<BacklogItem | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
 
-  if (!projectId) {
-    return <div>Project ID is missing</div>;
-  }
-
-  // Filter backlog items - those with status "backlog" and belonging to this project
-  const backlogItems = tasks
-    .filter((item) => item.projectId === projectId && item.status === "backlog" && !item.sprintId)
+  // Filter backlog items for the current project
+  const projectBacklogItems = backlogItems
+    .filter((item) => item.projectId === projectId)
     .filter((item) => 
       item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (item.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false)
@@ -63,22 +61,19 @@ const ProductBacklog: React.FC = () => {
 
   // Get active sprints for this project (not completed)
   const activeSprints = sprints.filter(
-    (sprint) => sprint.projectId === projectId && sprint.status !== "completed"
+    (sprint) => sprint.projectId === projectId && !sprint.isCompleted
   );
 
-  const handleEditItem = (item: any) => {
+  const handleEditItem = (item: BacklogItem) => {
     setItemToEdit(item);
     setShowItemForm(true);
   };
 
   const handleMoveToSprint = (itemId: string, sprintId: string) => {
-    updateTask(itemId, { 
-      sprintId: sprintId,
-      status: "todo" // Change from "backlog" to "todo" when moved to a sprint
-    });
+    moveBacklogItemToSprint(itemId, sprintId);
   };
 
-  const getPriorityClass = (priority: string | undefined) => {
+  const getPriorityClass = (priority: string) => {
     switch (priority) {
       case "high":
         return "bg-red-100 text-red-800 border-red-200";
@@ -124,7 +119,7 @@ const ProductBacklog: React.FC = () => {
         </div>
       </div>
 
-      {backlogItems.length === 0 ? (
+      {projectBacklogItems.length === 0 ? (
         <div className="text-center py-12 bg-accent/30 rounded-lg border border-border">
           <h3 className="text-xl font-medium mb-2">No Backlog Items</h3>
           <p className="text-muted-foreground mb-6">
@@ -136,12 +131,12 @@ const ProductBacklog: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-4">
-          {backlogItems.map((item) => (
+          {projectBacklogItems.map((item) => (
             <Card key={item.id} className="hover:shadow-sm transition-shadow">
               <CardHeader className="p-4 pb-2">
                 <div className="flex justify-between items-start">
                   <CardTitle className="text-lg">{item.title}</CardTitle>
-                  <Badge variant="outline" className={getPriorityClass(item.priority)}>
+                  <Badge variant="outline" className={getPriorityClass(item.priority || "")}>
                     {item.priority || "none"}
                   </Badge>
                 </div>
@@ -165,7 +160,7 @@ const ProductBacklog: React.FC = () => {
                     variant="ghost"
                     size="sm"
                     className="h-8 px-2 text-destructive"
-                    onClick={() => deleteTask(item.id)}
+                    onClick={() => deleteBacklogItem(item.id)}
                   >
                     <TrashIcon className="h-3.5 w-3.5 mr-1" />
                     Delete
@@ -234,4 +229,4 @@ const ProductBacklog: React.FC = () => {
   );
 };
 
-export default ProductBacklog;
+export default Backlog;

@@ -23,29 +23,20 @@ export interface Sprint {
   startDate: string;
   endDate: string;
   status: 'planned' | 'in-progress' | 'completed';
-  isCompleted?: boolean;
 }
 
 export interface Task {
   id: string;
   title: string;
   description?: string;
-  sprintId: string | null;  // Allow null for backlog items
-  projectId?: string;  // Required for backlog tasks
+  sprintId: string;
+  projectId?: string; // Added for backlog tasks
   status: 'todo' | 'in-progress' | 'review' | 'done' | 'backlog' | string;
   assignedTo?: string;
   storyPoints?: number;
   priority?: 'low' | 'medium' | 'high';
   createdAt: string;
   updatedAt: string;
-}
-
-export interface BacklogItemFormData {
-  title: string;
-  description: string;
-  priority: 'low' | 'medium' | 'high';
-  storyPoints: number;
-  projectId?: string;
 }
 
 export interface BurndownData {

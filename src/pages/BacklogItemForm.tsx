@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useProject } from "@/context/ProjectContext";
+import { useProjects } from "@/context/ProjectContext";
 import { X } from "lucide-react";
 import { useParams } from "react-router-dom";
 
@@ -50,7 +50,7 @@ const BacklogItemForm: React.FC<BacklogItemFormProps> = ({
   itemToEdit,
   projectId: propProjectId
 }) => {
-  const { projects, sprints, tasks, addTask, updateTask } = useProject();
+  const { projects, sprints, tasks, addTask, updateTask } = useProjects();
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const isEditMode = !!itemToEdit;
   

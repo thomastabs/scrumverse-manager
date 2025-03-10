@@ -1,6 +1,5 @@
-
 import React, { useState } from "react";
-import { useProject } from "@/context/ProjectContext";
+import { useProjects } from "@/context/ProjectContext";
 import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,7 +39,7 @@ import { Input } from "@/components/ui/input";
 
 const ProductBacklog: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
-  const { tasks, sprints, deleteTask, updateTask } = useProject();
+  const { tasks, sprints, deleteTask, updateTask } = useProjects();
   const [showItemForm, setShowItemForm] = useState(false);
   const [itemToEdit, setItemToEdit] = useState<any | null>(null);
   const [searchQuery, setSearchQuery] = useState("");

@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useProjects } from "@/context/ProjectContext";
 import { X } from "lucide-react";
 import { useParams } from "react-router-dom";
+import { toast } from "sonner";
 
 const formSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters"),
@@ -71,6 +72,7 @@ const BacklogItemForm: React.FC<BacklogItemFormProps> = ({
     try {
       if (isEditMode && itemToEdit) {
         await updateTask(itemToEdit.id, data);
+        toast.success("Item updated successfully");
       } else {
         // Create a backlog item that's not assigned to any sprint
         await addTask({
@@ -80,12 +82,14 @@ const BacklogItemForm: React.FC<BacklogItemFormProps> = ({
           storyPoints: data.storyPoints,
           projectId: projectId,
           status: "backlog",
-          sprintId: null // Important: Use null instead of "backlog" string
+          sprintId: null // This will ensure we're not looking for a sprint
         });
+        toast.success("Item created successfully");
       }
       onClose();
     } catch (error) {
       console.error("Error creating backlog item:", error);
+      toast.error(`Failed to ${isEditMode ? 'update' : 'create'} item: ${(error as Error).message}`);
     }
   };
 

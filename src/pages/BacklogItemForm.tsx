@@ -3,7 +3,6 @@ import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { BacklogItemFormData } from "@/types";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -51,7 +50,7 @@ const BacklogItemForm: React.FC<BacklogItemFormProps> = ({
   itemToEdit,
   projectId: propProjectId
 }) => {
-  const { createBacklogItem, updateBacklogItem } = useProject();
+  const { projects, sprints, tasks, addTask, updateTask } = useProject();
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const isEditMode = !!itemToEdit;
   
@@ -68,17 +67,26 @@ const BacklogItemForm: React.FC<BacklogItemFormProps> = ({
     },
   });
 
-  const onSubmit = (data: BacklogItemFormData) => {
-    if (isEditMode && itemToEdit) {
-      updateBacklogItem(itemToEdit.id, data);
-    } else {
-      // Include the projectId when creating a new backlog item
-      createBacklogItem({
-        ...data,
-        projectId
-      });
+  const onSubmit = async (data: z.infer<typeof formSchema>) => {
+    try {
+      if (isEditMode && itemToEdit) {
+        await updateTask(itemToEdit.id, data);
+      } else {
+        // Create a backlog item that's not assigned to any sprint
+        await addTask({
+          title: data.title,
+          description: data.description,
+          priority: data.priority,
+          storyPoints: data.storyPoints,
+          projectId: projectId,
+          status: "backlog",
+          sprintId: null // Important: Use null instead of "backlog" string
+        });
+      }
+      onClose();
+    } catch (error) {
+      console.error("Error creating backlog item:", error);
     }
-    onClose();
   };
 
   return (

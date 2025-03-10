@@ -422,8 +422,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!user) throw new Error('User not authenticated');
 
     try {
-      const sprint = getSprint(task.sprintId);
-      if (!sprint) throw new Error('Sprint not found');
+      // Handle special case for backlog tasks
+      const isBacklogTask = task.sprintId === "backlog";
+      const projectId = isBacklogTask 
+        ? task.projectId // Use provided projectId for backlog tasks
+        : getSprint(task.sprintId)?.projectId; // Get projectId from sprint
+        
+      if (!projectId && !isBacklogTask) throw new Error('Sprint not found');
 
       const { data, error } = await supabase
         .from('tasks')
@@ -434,7 +439,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           assign_to: task.assignedTo,
           story_points: task.storyPoints,
           sprint_id: task.sprintId,
-          project_id: sprint.projectId,
+          project_id: projectId,
           user_id: user.id
         }])
         .select()
@@ -458,11 +463,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       setTasks(prev => [...prev, newTask]);
       
-      updateBurndownData(
-        sprint.projectId,
-        task.storyPoints || 0,
-        "add"
-      );
+      if (!isBacklogTask && projectId) {
+        updateBurndownData(
+          projectId,
+          task.storyPoints || 0,
+          "add"
+        );
+      }
       
       return newTask;
     } catch (error) {

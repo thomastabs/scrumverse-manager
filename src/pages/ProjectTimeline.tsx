@@ -3,11 +3,11 @@ import React from "react";
 import { useParams } from "react-router-dom";
 import { useProjects } from "@/context/ProjectContext";
 import { format, parseISO, differenceInDays, addDays } from "date-fns";
-import { Calendar, CheckCircle, Circle, Clock } from "lucide-react";
+import { Calendar, CheckCircle, Circle, Clock, Users, ListTodo } from "lucide-react";
 
 const ProjectTimeline: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
-  const { getProject, getSprintsByProject } = useProjects();
+  const { getProject, getSprintsByProject, getTasksBySprint } = useProjects();
   
   const project = getProject(projectId || "");
   const sprints = getSprintsByProject(projectId || "");
@@ -26,9 +26,9 @@ const ProjectTimeline: React.FC = () => {
       case "completed":
         return "bg-success";
       case "in-progress":
-        return "bg-blue-500";
+        return "bg-purple-500";
       default:
-        return "bg-scrum-accent";
+        return "bg-purple-300";
     }
   };
   
@@ -37,10 +37,20 @@ const ProjectTimeline: React.FC = () => {
       case "completed":
         return <CheckCircle className="h-4 w-4 text-success" />;
       case "in-progress":
-        return <Clock className="h-4 w-4 text-blue-500" />;
+        return <Clock className="h-4 w-4 text-purple-500" />;
       default:
-        return <Circle className="h-4 w-4 text-scrum-accent" />;
+        return <Circle className="h-4 w-4 text-purple-300" />;
     }
+  };
+
+  // Get task count for a sprint
+  const getSprintTaskCount = (sprintId: string) => {
+    return getTasksBySprint(sprintId).length;
+  };
+  
+  // Get completed task count for a sprint
+  const getCompletedTaskCount = (sprintId: string) => {
+    return getTasksBySprint(sprintId).filter(task => task.status === "done").length;
   };
   
   return (
@@ -86,10 +96,16 @@ const ProjectTimeline: React.FC = () => {
                           {getStatusIcon(sprint.status)}
                           <span className="font-medium">{sprint.title}</span>
                         </div>
-                        <div className="flex items-center text-xs text-scrum-text-secondary">
+                        <div className="flex items-center text-xs text-purple-400 mb-1">
                           <Calendar className="h-3 w-3 mr-1" />
                           <span>
                             {format(new Date(sprint.startDate), "MMM d")} - {format(new Date(sprint.endDate), "MMM d, yyyy")}
+                          </span>
+                        </div>
+                        <div className="flex items-center text-xs text-purple-300">
+                          <ListTodo className="h-3 w-3 mr-1" />
+                          <span>
+                            {getCompletedTaskCount(sprint.id)}/{getSprintTaskCount(sprint.id)} tasks completed
                           </span>
                         </div>
                       </div>
@@ -114,31 +130,50 @@ const ProjectTimeline: React.FC = () => {
           </div>
           
           <div className="grid md:grid-cols-2 gap-6">
-            {sortedSprints.map((sprint) => (
-              <div key={sprint.id} className="p-4 bg-scrum-card border border-scrum-border rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium">{sprint.title}</h4>
-                  <span className={`px-2 py-0.5 text-xs rounded-full text-white flex items-center gap-1 ${getStatusColor(sprint.status)}`}>
-                    {getStatusIcon(sprint.status)}
-                    <span>
-                      {sprint.status === "in-progress" ? "In Progress" : 
-                        sprint.status.charAt(0).toUpperCase() + sprint.status.slice(1)}
+            {sortedSprints.map((sprint) => {
+              const totalTasks = getSprintTaskCount(sprint.id);
+              const completedTasks = getCompletedTaskCount(sprint.id);
+              const progressPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+              
+              return (
+                <div key={sprint.id} className="p-4 bg-scrum-card border border-scrum-border rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium">{sprint.title}</h4>
+                    <span className={`px-2 py-0.5 text-xs rounded-full text-white flex items-center gap-1 ${getStatusColor(sprint.status)}`}>
+                      {getStatusIcon(sprint.status)}
+                      <span>
+                        {sprint.status === "in-progress" ? "In Progress" : 
+                          sprint.status.charAt(0).toUpperCase() + sprint.status.slice(1)}
+                      </span>
                     </span>
-                  </span>
+                  </div>
+                  
+                  <p className="text-sm text-scrum-text-secondary mb-3 line-clamp-2">
+                    {sprint.description}
+                  </p>
+                  
+                  <div className="flex items-center text-xs text-purple-400 mb-2">
+                    <Calendar className="h-3 w-3 mr-1" />
+                    <span>
+                      {format(new Date(sprint.startDate), "MMMM d, yyyy")} - {format(new Date(sprint.endDate), "MMMM d, yyyy")}
+                    </span>
+                  </div>
+                  
+                  <div className="mb-2">
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-purple-300">{completedTasks}/{totalTasks} tasks</span>
+                      <span className="text-purple-400">{progressPercentage}% completed</span>
+                    </div>
+                    <div className="w-full bg-scrum-background h-1.5 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-purple-500 rounded-full"
+                        style={{ width: `${progressPercentage}%` }}
+                      ></div>
+                    </div>
+                  </div>
                 </div>
-                
-                <p className="text-sm text-scrum-text-secondary mb-3 line-clamp-2">
-                  {sprint.description}
-                </p>
-                
-                <div className="flex items-center text-xs text-scrum-text-secondary">
-                  <Calendar className="h-3 w-3 mr-1" />
-                  <span>
-                    {format(new Date(sprint.startDate), "MMMM d, yyyy")} - {format(new Date(sprint.endDate), "MMMM d, yyyy")}
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

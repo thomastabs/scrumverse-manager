@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useProjects } from "@/context/ProjectContext";
@@ -367,12 +366,6 @@ const SprintBoard: React.FC = () => {
                           )
                         ))}
                         {provided.placeholder}
-                        
-                        {columnTasks.length === 0 && (
-                          <div className="text-center py-4 text-scrum-text-secondary text-sm italic">
-                            No tasks
-                          </div>
-                        )}
                       </div>
                     )}
                   </Droppable>

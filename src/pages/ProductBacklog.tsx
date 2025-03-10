@@ -3,20 +3,57 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useProjects } from "@/context/ProjectContext";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
-import { Plus, Send, Package, ArrowRight, Trash } from "lucide-react";
+import { Plus, Send, Package, ArrowRight, Trash, Search, Filter } from "lucide-react";
 import { toast } from "sonner";
 import TaskCard from "@/components/tasks/TaskCard";
 import EditTaskModal from "@/components/tasks/EditTaskModal";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose,
+} from "@/components/ui/dialog";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import BacklogItemForm from "./BacklogItemForm";
 
 const ProductBacklog: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
-  const { getProject, getSprintsByProject, getTasksBySprint, addTask, updateTask } = useProjects();
+  const { 
+    getProject, 
+    getSprintsByProject, 
+    getTasksBySprint, 
+    addTask, 
+    updateTask,
+    deleteTask
+  } = useProjects();
   const navigate = useNavigate();
   
   const [backlogTasks, setBacklogTasks] = useState<any[]>([]);
   const [editingTask, setEditingTask] = useState<string | null>(null);
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [movingTask, setMovingTask] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
   
   const project = projectId ? getProject(projectId) : undefined;
   const sprints = projectId ? getSprintsByProject(projectId) : [];
@@ -28,7 +65,7 @@ const ProductBacklog: React.FC = () => {
     
     // Find or create a virtual backlog sprint to hold backlog tasks
     const tasks = getTasksBySprint("backlog");
-    setBacklogTasks(tasks.filter(task => task.status === "backlog"));
+    setBacklogTasks(tasks.filter(task => task.status === "backlog" && task.projectId === projectId));
   }, [projectId, getTasksBySprint]);
   
   const handleDragEnd = async (result: any) => {
@@ -51,7 +88,7 @@ const ProductBacklog: React.FC = () => {
       
       // Refresh backlog tasks
       const tasks = getTasksBySprint("backlog");
-      setBacklogTasks(tasks.filter(task => task.status === "backlog"));
+      setBacklogTasks(tasks.filter(task => task.status === "backlog" && task.projectId === projectId));
       
     } catch (error) {
       console.error("Error updating task status:", error);
@@ -73,10 +110,47 @@ const ProductBacklog: React.FC = () => {
       
       // Refresh backlog tasks
       const tasks = getTasksBySprint("backlog");
-      setBacklogTasks(tasks.filter(task => task.status === "backlog"));
+      setBacklogTasks(tasks.filter(task => task.status === "backlog" && task.projectId === projectId));
     } catch (error) {
       console.error("Error moving task to sprint:", error);
       toast.error("Failed to move task to sprint");
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    try {
+      await deleteTask(taskId);
+      toast.success("Backlog item deleted successfully");
+      
+      // Refresh backlog tasks
+      const tasks = getTasksBySprint("backlog");
+      setBacklogTasks(tasks.filter(task => task.status === "backlog" && task.projectId === projectId));
+    } catch (error) {
+      console.error("Error deleting task:", error);
+      toast.error("Failed to delete task");
+    }
+  };
+
+  // Filter backlog tasks by search query and priority
+  const filteredBacklogTasks = backlogTasks
+    .filter(task => 
+      task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (task.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false)
+    )
+    .filter(task => 
+      priorityFilter === "all" || task.priority === priorityFilter
+    );
+  
+  const getPriorityClass = (priority: string | undefined) => {
+    switch (priority) {
+      case "high":
+        return "bg-red-100 text-red-800 border-red-200";
+      case "medium":
+        return "bg-orange-100 text-orange-800 border-orange-200";
+      case "low":
+        return "bg-green-100 text-green-800 border-green-200";
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-200";
     }
   };
   
@@ -98,25 +172,49 @@ const ProductBacklog: React.FC = () => {
     <div className="container mx-auto pb-20">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-xl font-bold">Product Backlog</h2>
+          <h2 className="text-2xl font-bold">Product Backlog</h2>
           <p className="text-scrum-text-secondary">
             Manage your project's backlog items and move them to sprints
           </p>
         </div>
         
-        <button
+        <Button
           onClick={() => setIsAddingTask(true)}
-          className="scrum-button flex items-center gap-1"
+          className="flex items-center gap-1"
         >
           <Plus className="h-4 w-4" />
           <span>Add Backlog Item</span>
-        </button>
+        </Button>
+      </div>
+
+      <div className="flex flex-col md:flex-row gap-4 mb-6">
+        <div className="flex-1">
+          <Input
+            placeholder="Search backlog items..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full"
+          />
+        </div>
+        <div className="w-full md:w-44">
+          <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder="Filter by priority" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Priorities</SelectItem>
+              <SelectItem value="high">High</SelectItem>
+              <SelectItem value="medium">Medium</SelectItem>
+              <SelectItem value="low">Low</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
       
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="bg-scrum-card border border-scrum-border rounded-lg p-4 mb-6">
+        <div className="bg-background border border-border rounded-lg p-4 mb-6">
           <div className="flex items-center gap-2 mb-4">
-            <Package className="text-scrum-text-secondary h-5 w-5" />
+            <Package className="text-muted-foreground h-5 w-5" />
             <h3 className="font-medium">Backlog Items</h3>
           </div>
           
@@ -125,18 +223,18 @@ const ProductBacklog: React.FC = () => {
               <div
                 ref={provided.innerRef}
                 {...provided.droppableProps}
-                className={`min-h-[200px] ${snapshot.isDraggingOver ? "bg-scrum-accent/10" : ""}`}
+                className={`min-h-[200px] ${snapshot.isDraggingOver ? "bg-accent/10" : ""}`}
               >
-                {backlogTasks.length === 0 ? (
-                  <div className="text-center py-8 text-scrum-text-secondary">
+                {filteredBacklogTasks.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
                     <p>No items in the backlog</p>
                     <p className="text-sm mt-2">
                       Add tasks to your backlog to plan future work
                     </p>
                   </div>
                 ) : (
-                  <div className="grid gap-2">
-                    {backlogTasks.map((task, index) => (
+                  <div className="space-y-4">
+                    {filteredBacklogTasks.map((task, index) => (
                       <Draggable
                         key={task.id}
                         draggableId={task.id}
@@ -149,23 +247,97 @@ const ProductBacklog: React.FC = () => {
                             {...provided.dragHandleProps}
                             className={`${snapshot.isDragging ? "opacity-70" : ""}`}
                           >
-                            <div className="flex items-center">
-                              <div className="flex-1">
-                                <TaskCard
-                                  task={task}
-                                  onEdit={() => setEditingTask(task.id)}
-                                  isSprintCompleted={false}
-                                />
-                              </div>
-                              
-                              <button
-                                onClick={() => setMovingTask(task.id)}
-                                className="ml-2 text-scrum-text-secondary hover:text-white transition-colors p-1"
-                                title="Move to Sprint"
-                              >
-                                <ArrowRight className="h-4 w-4" />
-                              </button>
-                            </div>
+                            <Card className="hover:shadow-sm transition-shadow">
+                              <CardHeader className="p-4 pb-2">
+                                <div className="flex justify-between items-start">
+                                  <CardTitle className="text-lg">{task.title}</CardTitle>
+                                  <Badge variant="outline" className={getPriorityClass(task.priority)}>
+                                    {task.priority || "none"}
+                                  </Badge>
+                                </div>
+                              </CardHeader>
+                              <CardContent className="p-4 pt-2">
+                                <p className="text-sm text-muted-foreground mb-2">{task.description || ""}</p>
+                                <Badge variant="secondary">SP: {task.storyPoints || 0}</Badge>
+                              </CardContent>
+                              <CardFooter className="p-4 pt-0 flex justify-between">
+                                <div className="flex gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 px-2"
+                                    onClick={() => setEditingTask(task.id)}
+                                  >
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      className="h-3.5 w-3.5 mr-1"
+                                    >
+                                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                      <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z" />
+                                    </svg>
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 px-2 text-destructive"
+                                    onClick={() => handleDeleteTask(task.id)}
+                                  >
+                                    <Trash className="h-3.5 w-3.5 mr-1" />
+                                    Delete
+                                  </Button>
+                                </div>
+                                
+                                {availableSprints.length > 0 && (
+                                  <Dialog>
+                                    <DialogTrigger asChild>
+                                      <Button size="sm" className="h-8">
+                                        <ArrowRight className="h-3.5 w-3.5 mr-1" />
+                                        Move to Sprint
+                                      </Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                      <DialogHeader>
+                                        <DialogTitle>Move to Sprint</DialogTitle>
+                                        <DialogDescription>
+                                          Select a sprint to move this task to:
+                                        </DialogDescription>
+                                      </DialogHeader>
+                                      
+                                      <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+                                        {availableSprints.map(sprint => (
+                                          <Button
+                                            key={sprint.id}
+                                            onClick={() => handleMoveToSprint(task.id, sprint.id)}
+                                            variant="outline"
+                                            className="w-full justify-start h-auto py-3"
+                                          >
+                                            <div className="text-left">
+                                              <p className="font-medium">{sprint.title}</p>
+                                              <p className="text-xs text-muted-foreground">
+                                                {new Date(sprint.startDate).toLocaleDateString()} to {new Date(sprint.endDate).toLocaleDateString()}
+                                              </p>
+                                            </div>
+                                          </Button>
+                                        ))}
+                                      </div>
+                                      
+                                      <DialogFooter>
+                                        <DialogClose asChild>
+                                          <Button variant="outline">Cancel</Button>
+                                        </DialogClose>
+                                      </DialogFooter>
+                                    </DialogContent>
+                                  </Dialog>
+                                )}
+                              </CardFooter>
+                            </Card>
                           </div>
                         )}
                       </Draggable>
@@ -181,231 +353,21 @@ const ProductBacklog: React.FC = () => {
       
       {/* Edit Task Modal */}
       {editingTask && (
-        <EditTaskModal
+        <BacklogItemForm
           taskId={editingTask}
           onClose={() => setEditingTask(null)}
+          projectId={projectId}
         />
       )}
       
       {/* Add New Task Modal */}
       {isAddingTask && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in">
-          <div className="bg-scrum-card border border-scrum-border rounded-lg p-6 w-full max-w-lg animate-fade-up">
-            <NewBacklogTaskForm 
-              projectId={projectId || ""}
-              onClose={() => setIsAddingTask(false)}
-            />
-          </div>
-        </div>
-      )}
-      
-      {/* Move Task to Sprint Modal */}
-      {movingTask && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in">
-          <div className="bg-scrum-card border border-scrum-border rounded-lg p-6 w-full max-w-md animate-fade-up">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">Move to Sprint</h2>
-              <button
-                onClick={() => setMovingTask(null)}
-                className="text-scrum-text-secondary hover:text-white"
-              >
-                <Trash className="h-5 w-5" />
-              </button>
-            </div>
-            
-            {availableSprints.length === 0 ? (
-              <div className="text-center py-6">
-                <p className="mb-4">No active sprints available</p>
-                <button
-                  onClick={() => setMovingTask(null)}
-                  className="scrum-button"
-                >
-                  Close
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <p className="text-scrum-text-secondary">Select a sprint to move this task to:</p>
-                
-                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
-                  {availableSprints.map(sprint => (
-                    <button
-                      key={sprint.id}
-                      onClick={() => handleMoveToSprint(movingTask, sprint.id)}
-                      className="w-full text-left p-3 bg-scrum-background rounded-md border border-scrum-border hover:border-scrum-accent transition-colors"
-                    >
-                      <div className="font-medium">{sprint.title}</div>
-                      <div className="text-xs text-scrum-text-secondary mt-1">
-                        {new Date(sprint.startDate).toLocaleDateString()} to {new Date(sprint.endDate).toLocaleDateString()}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-                
-                <div className="flex justify-end mt-4">
-                  <button
-                    onClick={() => setMovingTask(null)}
-                    className="scrum-button-secondary"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        <BacklogItemForm 
+          onClose={() => setIsAddingTask(false)}
+          projectId={projectId}
+        />
       )}
     </div>
-  );
-};
-
-// New Backlog Task Form Component
-const NewBacklogTaskForm: React.FC<{
-  projectId: string;
-  onClose: () => void;
-}> = ({ projectId, onClose }) => {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState<"low" | "medium" | "high" | "">("");
-  const [assignedTo, setAssignedTo] = useState("");
-  const [storyPoints, setStoryPoints] = useState<number | "">("");
-  
-  const { addTask } = useProjects();
-  
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!title.trim()) {
-      toast.error("Task title is required");
-      return;
-    }
-    
-    try {
-      await addTask({
-        title,
-        description,
-        sprintId: "backlog", // We use "backlog" as a virtual sprint ID
-        status: "backlog",
-        assignedTo: assignedTo || undefined,
-        priority: priority || undefined,
-        storyPoints: typeof storyPoints === 'number' ? storyPoints : undefined
-      });
-      
-      toast.success("Task created successfully");
-      onClose();
-    } catch (error) {
-      console.error("Error creating task:", error);
-      toast.error("Failed to create task");
-    }
-  };
-  
-  return (
-    <>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold">Add Backlog Item</h2>
-        <button
-          onClick={onClose}
-          className="text-scrum-text-secondary hover:text-white"
-        >
-          <Trash className="h-5 w-5" />
-        </button>
-      </div>
-      
-      <form onSubmit={handleSubmit}>
-        <div className="mb-4">
-          <label className="block mb-2 text-sm">
-            Task Title <span className="text-destructive">*</span>
-          </label>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="scrum-input"
-            placeholder="e.g. Implement login functionality"
-            required
-            autoFocus
-          />
-        </div>
-        
-        <div className="mb-4">
-          <label className="block mb-2 text-sm">
-            Description
-          </label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="scrum-input"
-            placeholder="Task details and requirements"
-            rows={3}
-          />
-        </div>
-        
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="block mb-2 text-sm">
-              Priority
-            </label>
-            <select
-              value={priority}
-              onChange={(e) => setPriority(e.target.value as any)}
-              className="scrum-input"
-            >
-              <option value="">None</option>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-            </select>
-          </div>
-          
-          <div>
-            <label className="block mb-2 text-sm">
-              Story Points
-            </label>
-            <input
-              type="number"
-              min="0"
-              max="100"
-              value={storyPoints}
-              onChange={(e) => {
-                const value = e.target.value;
-                setStoryPoints(value === "" ? "" : parseInt(value));
-              }}
-              className="scrum-input"
-              placeholder="e.g. 5"
-            />
-          </div>
-        </div>
-        
-        <div className="mb-6">
-          <label className="block mb-2 text-sm">
-            Assigned To
-          </label>
-          <input
-            type="text"
-            value={assignedTo}
-            onChange={(e) => setAssignedTo(e.target.value)}
-            className="scrum-input"
-            placeholder="e.g. John Doe"
-          />
-        </div>
-        
-        <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="scrum-button-secondary"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="scrum-button"
-          >
-            Create Task
-          </button>
-        </div>
-      </form>
-    </>
   );
 };
 

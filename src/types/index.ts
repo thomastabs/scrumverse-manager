@@ -23,6 +23,7 @@ export interface Sprint {
   startDate: string;
   endDate: string;
   status: 'planned' | 'in-progress' | 'completed';
+  isCompleted?: boolean; // Added for compatibility with shared code
 }
 
 export interface Task {
@@ -37,6 +38,23 @@ export interface Task {
   priority?: 'low' | 'medium' | 'high';
   createdAt: string;
   updatedAt: string;
+}
+
+export interface BacklogItem {
+  id: string;
+  title: string;
+  description?: string;
+  projectId: string;
+  priority?: 'low' | 'medium' | 'high';
+  storyPoints?: number;
+}
+
+export interface BacklogItemFormData {
+  title: string;
+  description: string;
+  priority: 'low' | 'medium' | 'high';
+  storyPoints: number;
+  projectId?: string;
 }
 
 export interface BurndownData {

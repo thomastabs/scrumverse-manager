@@ -30,6 +30,7 @@ export interface Task {
   title: string;
   description?: string;
   sprintId: string;
+  projectId?: string; // Added for backlog tasks
   status: 'todo' | 'in-progress' | 'review' | 'done' | 'backlog' | string;
   assignedTo?: string;
   storyPoints?: number;

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useProjects } from "@/context/ProjectContext";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
-import { Plus, Send, Package, ArrowRight, Trash } from "lucide-react";
+import { Plus, ArrowRight, Trash, Send, Package } from "lucide-react";
 import { toast } from "sonner";
 import TaskCard from "@/components/tasks/TaskCard";
 import EditTaskModal from "@/components/tasks/EditTaskModal";
@@ -285,6 +285,7 @@ const NewBacklogTaskForm: React.FC<{
         title,
         description,
         sprintId: "backlog", // We use "backlog" as a virtual sprint ID
+        projectId, // Pass the projectId for backlog tasks
         status: "backlog",
         assignedTo: assignedTo || undefined,
         priority: priority || undefined,

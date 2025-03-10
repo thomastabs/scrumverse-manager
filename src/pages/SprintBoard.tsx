@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useProjects } from "@/context/ProjectContext";
@@ -190,7 +191,8 @@ const SprintBoard: React.FC = () => {
               <ChevronRightIcon className="h-4 w-4 ml-1" />
             </Button>
           )}
-          {!isSprintCompleted && (
+          {/* Fix the comparison logic to include all non-completed statuses */}
+          {sprint.status !== "completed" && (
             <Button
               variant={isSprintActive ? "destructive" : "default"}
               size="sm"

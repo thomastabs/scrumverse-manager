@@ -44,12 +44,14 @@ interface BacklogItemFormProps {
     storyPoints?: number;
   } | null;
   projectId?: string;
+  sprintId?: string | null;
 }
 
 const BacklogItemForm: React.FC<BacklogItemFormProps> = ({ 
   onClose, 
   itemToEdit,
-  projectId: propProjectId
+  projectId: propProjectId,
+  sprintId
 }) => {
   const { projects, sprints, tasks, addTask, updateTask } = useProjects();
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
@@ -74,15 +76,15 @@ const BacklogItemForm: React.FC<BacklogItemFormProps> = ({
         await updateTask(itemToEdit.id, data);
         toast.success("Item updated successfully");
       } else {
-        // Create a backlog item that's not assigned to any sprint
+        // Create a task with the provided sprintId or set to null for backlog items
         await addTask({
           title: data.title,
           description: data.description,
           priority: data.priority,
           storyPoints: data.storyPoints,
           projectId: projectId,
-          status: "backlog",
-          sprintId: null // This will ensure we're not looking for a sprint
+          status: sprintId ? "todo" : "backlog",
+          sprintId: sprintId || null
         });
         toast.success("Item created successfully");
       }
@@ -98,7 +100,7 @@ const BacklogItemForm: React.FC<BacklogItemFormProps> = ({
       <div className="bg-background rounded-lg shadow-lg w-full max-w-md p-6 animate-slide-in">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-semibold">
-            {isEditMode ? "Edit Backlog Item" : "Create Backlog Item"}
+            {isEditMode ? "Edit Backlog Item" : `Create ${sprintId ? "Sprint" : "Backlog"} Item`}
           </h2>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="h-4 w-4" />
@@ -191,7 +193,7 @@ const BacklogItemForm: React.FC<BacklogItemFormProps> = ({
                 Cancel
               </Button>
               <Button type="submit">
-                {isEditMode ? "Update Item" : "Create Item"}
+                {isEditMode ? "Update Item" : `Create ${sprintId ? "Sprint" : "Backlog"} Item`}
               </Button>
             </div>
           </form>

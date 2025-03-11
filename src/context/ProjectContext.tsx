@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Project, Sprint, Task, BurndownData } from "@/types";
 import { useAuth } from "./AuthContext";
@@ -23,7 +22,9 @@ interface ProjectContextType {
   updateTask: (id: string, task: Partial<Omit<Task, "id">>) => Promise<Task>;
   deleteTask: (id: string) => Promise<void>;
   getTasksBySprint: (sprintId: string) => Task[];
+  getBacklogTasks: (projectId: string) => Task[];
   getBurndownData: (projectId: string) => BurndownData[];
+  fetchCollaborativeProjects: () => Promise<void>;
 }
 
 const ProjectContext = createContext<ProjectContextType>({
@@ -45,7 +46,9 @@ const ProjectContext = createContext<ProjectContextType>({
   updateTask: async () => ({ id: "", title: "", sprintId: "", status: "todo", createdAt: "", updatedAt: "" }),
   deleteTask: async () => {},
   getTasksBySprint: () => [],
+  getBacklogTasks: () => [],
   getBurndownData: () => [],
+  fetchCollaborativeProjects: async () => {},
 });
 
 export const useProjects = () => useContext(ProjectContext);
@@ -60,6 +63,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     if (user) {
       fetchProjects();
+      fetchCollaborativeProjects();
     } else {
       setProjects([]);
       setSprints([]);
@@ -74,7 +78,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       const { data, error } = await supabase
         .from('projects')
-        .select('*')
+        .select(`*, owner:owner_id (username, email)`)
         .eq('owner_id', user.id);
 
       if (error) {
@@ -89,13 +93,17 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           description: project.description || '',
           endGoal: project.end_goal,
           createdAt: project.created_at,
-          updatedAt: project.updated_at
+          updatedAt: project.updated_at,
+          ownerId: project.owner_id,
+          ownerName: project.owner?.username || '',
+          isCollaboration: false
         }));
 
         setProjects(formattedProjects);
         
         formattedProjects.forEach(project => {
           fetchSprints(project.id);
+          fetchBacklogTasks(project.id);
         });
       }
     } catch (error) {
@@ -159,17 +167,23 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
 
       if (data) {
+        // Map the database status values to ensure they are consistent
         const formattedTasks: Task[] = data.map(task => ({
           id: task.id,
           title: task.title,
           description: task.description,
           sprintId: task.sprint_id || '',
-          status: task.status as 'todo' | 'in-progress' | 'review' | 'done',
+          // Ensure we preserve the exact status from the database
+          status: task.status,
           assignedTo: task.assign_to,
           storyPoints: task.story_points,
+          priority: task.priority as 'low' | 'medium' | 'high',
           createdAt: task.created_at,
-          updatedAt: task.created_at
+          updatedAt: task.created_at,
+          projectId: task.project_id
         }));
+
+        console.log('Fetched tasks with statuses:', formattedTasks.map(t => ({ id: t.id, status: t.status })));
 
         setTasks(prev => {
           const filtered = prev.filter(t => t.sprintId !== sprintId);
@@ -178,6 +192,51 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     } catch (error) {
       console.error('Error fetching tasks:', error);
+    }
+  };
+
+  const fetchBacklogTasks = async (projectId: string) => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .is('sprint_id', null)
+        .eq('project_id', projectId)
+        .eq('status', 'backlog')
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error fetching backlog tasks:', error);
+        return;
+      }
+
+      if (data) {
+        console.log('Fetched backlog tasks:', data);
+        const formattedTasks: Task[] = data.map(task => ({
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          sprintId: '',
+          status: 'backlog',
+          assignedTo: task.assign_to,
+          storyPoints: task.story_points,
+          priority: task.priority as 'low' | 'medium' | 'high',
+          createdAt: task.created_at,
+          updatedAt: task.updated_at,
+          projectId: task.project_id
+        }));
+
+        setTasks(prev => {
+          const filtered = prev.filter(t => 
+            !(t.status === 'backlog' && t.projectId === projectId && !t.sprintId)
+          );
+          return [...filtered, ...formattedTasks];
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching backlog tasks:', error);
     }
   };
 
@@ -195,7 +254,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           end_goal: project.endGoal,
           owner_id: user.id
         }])
-        .select()
+        .select(`*, owner:owner_id (username, email)`)
         .single();
 
       if (error) throw error;
@@ -208,7 +267,10 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         description: data.description || '',
         endGoal: data.end_goal,
         createdAt: data.created_at,
-        updatedAt: data.updated_at
+        updatedAt: data.updated_at,
+        ownerId: data.owner_id,
+        ownerName: data.owner?.username || '',
+        isCollaboration: false
       };
 
       setProjects(prev => [...prev, newProject]);
@@ -263,13 +325,10 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!user) throw new Error('User not authenticated');
 
     try {
-      // First, get all sprints for this project
       const projectSprints = sprints.filter(s => s.projectId === id);
       const sprintIds = projectSprints.map(s => s.id);
       
-      // Then delete all tasks related to these sprints
       if (sprintIds.length > 0) {
-        // Delete tasks associated with the sprints
         const { error: tasksError } = await supabase
           .from('tasks')
           .delete()
@@ -281,7 +340,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           throw tasksError;
         }
         
-        // Delete all sprints for this project
         const { error: sprintsError } = await supabase
           .from('sprints')
           .delete()
@@ -294,7 +352,18 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       }
       
-      // Finally delete the project
+      const { error: backlogTasksError } = await supabase
+        .from('tasks')
+        .delete()
+        .is('sprint_id', null)
+        .eq('project_id', id)
+        .eq('user_id', user.id);
+        
+      if (backlogTasksError) {
+        console.error('Error deleting backlog tasks:', backlogTasksError);
+        throw backlogTasksError;
+      }
+      
       const { error } = await supabase
         .from('projects')
         .delete()
@@ -305,7 +374,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       setProjects(prev => prev.filter(p => p.id !== id));
       setSprints(prev => prev.filter(s => s.projectId !== id));
-      setTasks(prev => prev.filter(t => !sprintIds.includes(t.sprintId)));
+      setTasks(prev => prev.filter(t => !sprintIds.includes(t.sprintId) && t.projectId !== id));
       
       setBurndownData(prev => {
         const newData = { ...prev };
@@ -422,26 +491,28 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!user) throw new Error('User not authenticated');
 
     try {
-      // Handle special case for backlog tasks
-      const isBacklogTask = task.sprintId === "backlog";
-      const projectId = isBacklogTask 
-        ? task.projectId // Use provided projectId for backlog tasks
-        : getSprint(task.sprintId)?.projectId; // Get projectId from sprint
-        
-      if (!projectId && !isBacklogTask) throw new Error('Sprint not found');
+      const isBacklogTask = task.status === "backlog";
+      const projectId = task.projectId;
+
+      if (!projectId) throw new Error('Project ID is required');
+
+      console.log('Adding task with data:', task);
+
+      const taskData = {
+        title: task.title,
+        description: task.description,
+        status: task.status,
+        assign_to: task.assignedTo,
+        story_points: task.storyPoints,
+        priority: task.priority,
+        sprint_id: isBacklogTask ? null : task.sprintId,
+        project_id: projectId,
+        user_id: user.id
+      };
 
       const { data, error } = await supabase
         .from('tasks')
-        .insert([{
-          title: task.title,
-          description: task.description,
-          status: task.status,
-          assign_to: task.assignedTo,
-          story_points: task.storyPoints,
-          sprint_id: task.sprintId,
-          project_id: projectId,
-          user_id: user.id
-        }])
+        .insert([taskData])
         .select()
         .single();
 
@@ -449,24 +520,28 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       if (!data) throw new Error('Failed to create task');
 
+      console.log('Task created in database:', data);
+
       const newTask: Task = {
         id: data.id,
         title: data.title,
         description: data.description,
-        sprintId: data.sprint_id,
-        status: data.status as 'todo' | 'in-progress' | 'review' | 'done',
+        sprintId: data.sprint_id || '',
+        status: data.status,
         assignedTo: data.assign_to,
         storyPoints: data.story_points,
+        priority: data.priority as 'low' | 'medium' | 'high',
         createdAt: data.created_at,
-        updatedAt: data.created_at
+        updatedAt: data.created_at,
+        projectId: data.project_id
       };
 
       setTasks(prev => [...prev, newTask]);
       
-      if (!isBacklogTask && projectId) {
+      if (!isBacklogTask && projectId && task.storyPoints) {
         updateBurndownData(
           projectId,
-          task.storyPoints || 0,
+          task.storyPoints,
           "add"
         );
       }
@@ -487,6 +562,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const existingTask = tasks.find(t => t.id === id);
       if (!existingTask) throw new Error('Task not found');
 
+      console.log('Updating task status from:', existingTask.status, 'to:', task.status);
+
       const { error } = await supabase
         .from('tasks')
         .update({
@@ -500,7 +577,10 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         .eq('id', id)
         .eq('user_id', user.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase update error:', error);
+        throw error;
+      }
 
       const updatedTask = {
         ...existingTask,
@@ -566,6 +646,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const getTasksBySprint = (sprintId: string) => 
     tasks.filter((t) => t.sprintId === sprintId);
 
+  const getBacklogTasks = (projectId: string) =>
+    tasks.filter((t) => t.status === "backlog" && t.projectId === projectId && !t.sprintId);
+
   const generateDefaultBurndownData = (): BurndownData[] => {
     const data: BurndownData[] = [];
     const today = new Date();
@@ -622,6 +705,71 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const getBurndownData = (projectId: string) => 
     burndownData[projectId] || generateDefaultBurndownData();
 
+  const fetchCollaborativeProjects = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('collaborators')
+        .select(`
+          role,
+          projects:project_id (
+            id, 
+            title, 
+            description, 
+            end_goal, 
+            created_at, 
+            updated_at,
+            owner_id,
+            owner:owner_id (username, email)
+          )
+        `)
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error fetching collaborative projects:', error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        // Extract the collaborative projects and format them
+        const collaborativeProjects = data
+          .filter(item => item.projects)
+          .map(item => {
+            const project = item.projects as any;
+            return {
+              id: project.id,
+              title: project.title,
+              description: project.description || '',
+              endGoal: project.end_goal,
+              createdAt: project.created_at,
+              updatedAt: project.updated_at,
+              ownerId: project.owner_id,
+              ownerName: project.owner?.username || '',
+              isCollaboration: true,
+              role: item.role
+            };
+          });
+
+        // Add collaborative projects to the projects state
+        setProjects(prev => {
+          // Filter out any duplicates (in case user is both owner and collaborator)
+          const existingIds = prev.map(p => p.id);
+          const newCollaborativeProjects = collaborativeProjects.filter(p => !existingIds.includes(p.id));
+          return [...prev, ...newCollaborativeProjects];
+        });
+
+        // Fetch sprints and backlog tasks for collaborative projects
+        collaborativeProjects.forEach(project => {
+          fetchSprints(project.id);
+          fetchBacklogTasks(project.id);
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching collaborative projects:', error);
+    }
+  };
+
   return (
     <ProjectContext.Provider
       value={{
@@ -643,7 +791,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updateTask,
         deleteTask,
         getTasksBySprint,
+        getBacklogTasks,
         getBurndownData,
+        fetchCollaborativeProjects,
       }}
     >
       {children}

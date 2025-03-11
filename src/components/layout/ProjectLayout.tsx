@@ -1,17 +1,49 @@
-
-import React from "react";
-import { Outlet, useParams, useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Outlet, useParams, useNavigate, useLocation } from "react-router-dom";
 import { useProjects } from "@/context/ProjectContext";
+import { useAuth } from "@/context/AuthContext";
 import NavLink from "@/components/ui/NavLink";
-import { ArrowLeft, LayoutGrid, List, LineChart, Edit, Trash, Package } from "lucide-react";
+import { ArrowLeft, LayoutGrid, List, LineChart, Edit, Trash, Package, Users } from "lucide-react";
 import { toast } from "sonner";
+import { fetchProjectCollaborators } from "@/lib/supabase";
+import { Collaborator } from "@/types";
 
 const ProjectLayout: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const { getProject, deleteProject } = useProjects();
+  const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [isOwner, setIsOwner] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
   
   const project = getProject(projectId || "");
+  
+  useEffect(() => {
+    const checkProjectAccess = async () => {
+      if (!project || !user) return;
+      
+      // Check if user is owner
+      if (project.ownerId === user.id) {
+        setIsOwner(true);
+        return;
+      }
+      
+      // Otherwise check collaborator role
+      try {
+        const collaborators = await fetchProjectCollaborators(project.id);
+        const userCollaboration = collaborators.find(c => c.userId === user.id);
+        
+        if (userCollaboration) {
+          setUserRole(userCollaboration.role);
+        }
+      } catch (error) {
+        console.error("Error checking project access:", error);
+      }
+    };
+    
+    checkProjectAccess();
+  }, [project, user]);
   
   if (!project) {
     return (
@@ -42,6 +74,12 @@ const ProjectLayout: React.FC = () => {
     }
   };
   
+  // Check if the user can edit the project
+  const canEditProject = isOwner || userRole === 'admin';
+  
+  // Check if the user can access backlog
+  const canAccessBacklog = isOwner || userRole === 'admin';
+  
   return (
     <div className="pt-16 min-h-screen animate-fade-in">
       <div className="px-6 py-4">
@@ -57,18 +95,22 @@ const ProjectLayout: React.FC = () => {
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               {project.title}
-              <button 
-                onClick={() => navigate(`/projects/${project.id}/edit`)}
-                className="text-scrum-text-secondary hover:text-white transition-colors"
-              >
-                <Edit className="h-4 w-4" />
-              </button>
-              <button 
-                onClick={handleDelete}
-                className="text-scrum-text-secondary hover:text-destructive transition-colors"
-              >
-                <Trash className="h-4 w-4" />
-              </button>
+              {canEditProject && (
+                <>
+                  <button 
+                    onClick={() => navigate(`/projects/${project.id}/edit`)}
+                    className="text-scrum-text-secondary hover:text-white transition-colors"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </button>
+                  <button 
+                    onClick={handleDelete}
+                    className="text-scrum-text-secondary hover:text-destructive transition-colors"
+                  >
+                    <Trash className="h-4 w-4" />
+                  </button>
+                </>
+              )}
             </h1>
             <p className="text-scrum-text-secondary">{project.description}</p>
           </div>
@@ -86,19 +128,37 @@ const ProjectLayout: React.FC = () => {
             <LayoutGrid className="h-4 w-4 mr-1" />
             <span>Sprints</span>
           </NavLink>
-          <NavLink to={`/projects/${project.id}/backlog`}>
-            <Package className="h-4 w-4 mr-1" />
-            <span>Product Backlog</span>
-          </NavLink>
+          
+          {canAccessBacklog && (
+            <NavLink to={`/projects/${project.id}/backlog`}>
+              <Package className="h-4 w-4 mr-1" />
+              <span>Product Backlog</span>
+            </NavLink>
+          )}
+          
           <NavLink to={`/projects/${project.id}/timeline`}>
             <List className="h-4 w-4 mr-1" />
             <span>Timeline</span>
           </NavLink>
+          
           <NavLink to={`/projects/${project.id}/burndown`}>
             <LineChart className="h-4 w-4 mr-1" />
             <span>Burndown Chart</span>
           </NavLink>
+          
+          {isOwner && (
+            <NavLink to={`/projects/${project.id}/collaborators`}>
+              <Users className="h-4 w-4 mr-1" />
+              <span>Collaborators</span>
+            </NavLink>
+          )}
         </div>
+        
+        {userRole && (
+          <div className="text-xs text-scrum-text-secondary mb-2">
+            You have {userRole} access to this project
+          </div>
+        )}
       </div>
       
       <main className="px-6 py-2 pb-20">

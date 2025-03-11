@@ -2,8 +2,7 @@
 export interface User {
   id: string;
   email: string;
-  name?: string;
-  username?: string;
+  username: string;
 }
 
 export interface Project {
@@ -13,6 +12,9 @@ export interface Project {
   endGoal?: string;
   createdAt: string;
   updatedAt: string;
+  ownerId?: string;
+  ownerName?: string;
+  isCollaboration?: boolean;
 }
 
 export interface Sprint {
@@ -23,7 +25,6 @@ export interface Sprint {
   startDate: string;
   endDate: string;
   status: 'planned' | 'in-progress' | 'completed';
-  isCompleted?: boolean; // Added for compatibility with shared code
 }
 
 export interface Task {
@@ -31,29 +32,12 @@ export interface Task {
   title: string;
   description?: string;
   sprintId: string;
-  projectId?: string; // Added for backlog tasks
-  status: 'todo' | 'in-progress' | 'review' | 'done' | 'backlog' | string;
+  status: string;
   assignedTo?: string;
   storyPoints?: number;
   priority?: 'low' | 'medium' | 'high';
   createdAt: string;
   updatedAt: string;
-}
-
-export interface BacklogItem {
-  id: string;
-  title: string;
-  description?: string;
-  projectId: string;
-  priority?: 'low' | 'medium' | 'high';
-  storyPoints?: number;
-}
-
-export interface BacklogItemFormData {
-  title: string;
-  description: string;
-  priority: 'low' | 'medium' | 'high';
-  storyPoints: number;
   projectId?: string;
 }
 
@@ -63,9 +47,19 @@ export interface BurndownData {
   actual: number;
 }
 
-export interface BoardColumn {
+export type ProjectRole = 'viewer' | 'member' | 'admin';
+
+export interface Collaborator {
   id: string;
-  title: string;
-  sprintId: string;
-  orderIndex: number;
+  userId: string;
+  username: string;
+  email: string;
+  role: ProjectRole;
+  createdAt: string;
+}
+
+export interface CollaborativeProject extends Project {
+  role: ProjectRole;
+  ownerName: string;
+  isCollaboration: boolean;
 }

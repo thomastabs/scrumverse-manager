@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useProjects } from "@/context/ProjectContext";
@@ -41,7 +40,7 @@ const ProductBacklog: React.FC = () => {
   const { 
     getProject, 
     getSprintsByProject, 
-    getTasksBySprint, 
+    getBacklogTasks, 
     addTask, 
     updateTask,
     deleteTask
@@ -63,10 +62,11 @@ const ProductBacklog: React.FC = () => {
   useEffect(() => {
     if (!projectId) return;
     
-    // Find or create a virtual backlog sprint to hold backlog tasks
-    const tasks = getTasksBySprint("backlog");
-    setBacklogTasks(tasks.filter(task => task.status === "backlog" && task.projectId === projectId));
-  }, [projectId, getTasksBySprint]);
+    console.log('Fetching backlog tasks for project ID:', projectId); // Add logging to help debug
+    const tasks = getBacklogTasks(projectId);
+    console.log('Retrieved backlog tasks:', tasks); // Add logging to help debug
+    setBacklogTasks(tasks);
+  }, [projectId, getBacklogTasks]);
   
   const handleDragEnd = async (result: any) => {
     const { destination, source, draggableId } = result;
@@ -87,8 +87,8 @@ const ProductBacklog: React.FC = () => {
       });
       
       // Refresh backlog tasks
-      const tasks = getTasksBySprint("backlog");
-      setBacklogTasks(tasks.filter(task => task.status === "backlog" && task.projectId === projectId));
+      const tasks = getBacklogTasks(projectId);
+      setBacklogTasks(tasks);
       
     } catch (error) {
       console.error("Error updating task status:", error);
@@ -109,8 +109,10 @@ const ProductBacklog: React.FC = () => {
       setMovingTask(null);
       
       // Refresh backlog tasks
-      const tasks = getTasksBySprint("backlog");
-      setBacklogTasks(tasks.filter(task => task.status === "backlog" && task.projectId === projectId));
+      if (projectId) {
+        const tasks = getBacklogTasks(projectId);
+        setBacklogTasks(tasks);
+      }
     } catch (error) {
       console.error("Error moving task to sprint:", error);
       toast.error("Failed to move task to sprint");
@@ -123,8 +125,10 @@ const ProductBacklog: React.FC = () => {
       toast.success("Backlog item deleted successfully");
       
       // Refresh backlog tasks
-      const tasks = getTasksBySprint("backlog");
-      setBacklogTasks(tasks.filter(task => task.status === "backlog" && task.projectId === projectId));
+      if (projectId) {
+        const tasks = getBacklogTasks(projectId);
+        setBacklogTasks(tasks);
+      }
     } catch (error) {
       console.error("Error deleting task:", error);
       toast.error("Failed to delete task");

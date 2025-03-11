@@ -20,7 +20,7 @@ const Navbar: React.FC = () => {
         <div className="flex items-center gap-4">
           <span className="text-sm text-scrum-text-secondary">{user.email}</span>
           <div className="h-8 w-8 rounded-full bg-white text-scrum-card flex items-center justify-center font-semibold">
-            {user.username?.charAt(0).toUpperCase() || user.name?.charAt(0).toUpperCase() || "U"}
+            {user.username?.charAt(0).toUpperCase() || "U"}
           </div>
           <button
             onClick={logout}

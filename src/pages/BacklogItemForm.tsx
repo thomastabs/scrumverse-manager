@@ -88,14 +88,16 @@ const BacklogItemForm: React.FC<BacklogItemFormProps> = ({ taskId, onClose, proj
           return;
         }
         
+        console.log('Creating new backlog item with project ID:', projectId); // Add logging to help debug
+        
         await addTask({
           title: data.title,
           description: data.description,
-          sprintId: "backlog", // We use "backlog" as a virtual sprint ID
+          status: "backlog", // Use status instead of sprintId for backlog items
           projectId: projectId, // Set projectId for the task
-          status: "backlog",
-          priority: data.priority,
+          priority: data.priority, // Making sure priority is passed correctly
           storyPoints: data.storyPoints,
+          sprintId: "", // Add the missing sprintId property with an empty string for backlog items
         });
         toast.success("Backlog item created successfully");
       }

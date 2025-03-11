@@ -1,16 +1,16 @@
+
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useProjects } from "@/context/ProjectContext";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
-import { Plus, Edit, Trash, AlertCircle } from "lucide-react";
-import { toast } from "sonner";
+import { Edit, Trash, Play, CheckCircle, AlertTriangle, Plus } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 import TaskCard from "@/components/tasks/TaskCard";
 import EditTaskModal from "@/components/tasks/EditTaskModal";
-import AddColumnModal from "@/components/sprints/AddColumnModal";
 
 const SprintBoard: React.FC = () => {
-  const { sprintId, projectId } = useParams<{ sprintId: string, projectId?: string }>();
-  const { getSprint, getTasksBySprint, updateSprint, updateTask, getProject } = useProjects();
+  const { sprintId } = useParams<{ sprintId: string }>();
+  const { getSprint, getTasksBySprint, updateSprint, updateTask } = useProjects();
   const navigate = useNavigate();
   
   const [columns, setColumns] = useState<{[key: string]: {title: string, taskIds: string[]}}>(
@@ -22,12 +22,11 @@ const SprintBoard: React.FC = () => {
   );
   const [columnOrder, setColumnOrder] = useState<string[]>(["todo", "in-progress", "done"]);
   const [editingTask, setEditingTask] = useState<string | null>(null);
-  const [isAddColumnModalOpen, setIsAddColumnModalOpen] = useState(false);
   const [creatingTaskInColumn, setCreatingTaskInColumn] = useState<string | null>(null);
+  const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
   
   const sprint = getSprint(sprintId || "");
   const tasks = getTasksBySprint(sprintId || "");
-  const project = projectId ? getProject(projectId) : (sprint ? getProject(sprint.projectId) : null);
   
   useEffect(() => {
     if (!sprint) return;
@@ -43,40 +42,16 @@ const SprintBoard: React.FC = () => {
       };
     });
     
-    const customStatuses = new Set<string>();
-    tasks.forEach(task => {
-      if (!["todo", "in-progress", "done"].includes(task.status)) {
-        customStatuses.add(task.status);
-      }
-    });
-    
-    customStatuses.forEach(status => {
-      initialColumns[status] = {
-        title: status.toUpperCase().replace(/-/g, ' '),
-        taskIds: []
-      };
-    });
-    
     tasks.forEach(task => {
       if (initialColumns[task.status]) {
         initialColumns[task.status].taskIds.push(task.id);
       } else {
-        initialColumns[task.status] = {
-          title: task.status.toUpperCase().replace(/-/g, ' '),
-          taskIds: [task.id]
-        };
-      }
-    });
-    
-    const newColumnOrder = [...columnOrder];
-    Object.keys(initialColumns).forEach(colId => {
-      if (!newColumnOrder.includes(colId)) {
-        newColumnOrder.push(colId);
+        initialColumns["todo"].taskIds.push(task.id);
       }
     });
     
     setColumns(initialColumns);
-    setColumnOrder(newColumnOrder);
+    setColumnOrder(["todo", "in-progress", "done"]);
   }, [sprint, tasks]);
   
   const handleDragEnd = async (result: any) => {
@@ -142,77 +117,67 @@ const SprintBoard: React.FC = () => {
           if (remainingTasks.length === 0 && sprint?.status === "in-progress") {
             if (window.confirm("All tasks are completed! Would you like to mark this sprint as completed?")) {
               await updateSprint(sprint.id, { status: "completed" });
-              toast.success("Sprint marked as completed!");
+              toast({
+                title: "Success",
+                description: "Sprint marked as completed!",
+              });
             }
           }
         }
       } catch (error) {
         console.error("Error updating task status:", error);
-        toast.error("Failed to update task status");
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to update task status",
+        });
       }
     }
-  };
-  
-  const handleAddColumn = (columnName: string) => {
-    if (!columnName.trim()) return;
-    
-    const columnId = columnName.toLowerCase().replace(/\s+/g, '-');
-    
-    if (columns[columnId]) {
-      toast.error("A column with this name already exists");
-      return;
-    }
-    
-    setColumns(prev => ({
-      ...prev,
-      [columnId]: {
-        title: columnName,
-        taskIds: []
-      }
-    }));
-    
-    setColumnOrder(prev => [...prev, columnId]);
-    setIsAddColumnModalOpen(false);
-    toast.success(`Column "${columnName}" added`);
-  };
-  
-  const handleRemoveColumn = (columnId: string) => {
-    if (["todo", "in-progress", "done"].includes(columnId)) {
-      toast.error("Cannot remove default columns");
-      return;
-    }
-    
-    if (columns[columnId]?.taskIds.length > 0) {
-      toast.error("Cannot remove a column that contains tasks");
-      return;
-    }
-    
-    const newColumns = { ...columns };
-    delete newColumns[columnId];
-    
-    setColumns(newColumns);
-    setColumnOrder(columnOrder.filter(id => id !== columnId));
-    toast.success("Column removed");
   };
   
   const handleCreateTaskInColumn = (columnId: string) => {
     setCreatingTaskInColumn(columnId);
   };
   
-  const handleCompleteButtonClick = async () => {
-    if (!sprint) return;
+  const allTasksCompleted = tasks.length > 0 && tasks.every(task => task.status === "done");
+  
+  const handleCompleteSprint = async () => {
+    if (!allTasksCompleted) {
+      setIsCompleteDialogOpen(true);
+      return;
+    }
     
     try {
-      if (sprint.status === "completed") {
-        toast.info("Sprint is already completed");
-        return;
-      }
-      
       await updateSprint(sprint.id, { status: "completed" });
-      toast.success("Sprint marked as completed");
+      toast({
+        title: "Success",
+        description: "Sprint marked as completed!",
+      });
     } catch (error) {
-      toast.error("Failed to update sprint status");
-      console.error(error);
+      console.error("Error completing sprint:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to complete sprint",
+      });
+    }
+  };
+  
+  const confirmCompleteSprint = async () => {
+    try {
+      await updateSprint(sprint.id, { status: "completed" });
+      toast({
+        title: "Success",
+        description: "Sprint marked as completed!",
+      });
+      setIsCompleteDialogOpen(false);
+    } catch (error) {
+      console.error("Error completing sprint:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to complete sprint",
+      });
     }
   };
   
@@ -221,80 +186,29 @@ const SprintBoard: React.FC = () => {
       <div className="text-center py-12">
         <h2 className="text-xl font-bold mb-4">Sprint not found</h2>
         <button
-          onClick={() => navigate("/")}
+          onClick={() => navigate(-1)}
           className="scrum-button"
         >
-          Go to Dashboard
+          Go Back
         </button>
       </div>
     );
   }
   
-  const allTasksCompleted = tasks.length > 0 && tasks.every(task => task.status === "done");
-  
-  const handleEditSprint = () => {
-    if (projectId) {
-      navigate(`/projects/${projectId}/sprint/${sprint.id}/edit`);
-    } else {
-      navigate(`/projects/${sprint.projectId}/sprint/${sprint.id}/edit`);
-    }
-  };
-  
   return (
     <div className="container mx-auto pb-20 px-4">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl font-bold">{sprint.title}</h2>
-            {sprint.status === "completed" && (
-              <span className="bg-success text-white text-xs px-2 py-1 rounded-full">
-                Completed
-              </span>
-            )}
-          </div>
-          <p className="text-scrum-text-secondary">{sprint.description}</p>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          {sprint.status !== "completed" && (
-            <>
-              <button
-                onClick={handleEditSprint}
-                className="scrum-button-secondary flex items-center gap-1"
-              >
-                <Edit className="h-4 w-4" />
-                <span>Edit Sprint</span>
-              </button>
-              
-              <button
-                onClick={handleCompleteButtonClick}
-                className={`scrum-button ${allTasksCompleted ? "bg-success hover:bg-success/90" : ""}`}
-                disabled={sprint.status === "completed"}
-              >
-                Complete Sprint
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+      <SprintHeader 
+        sprint={sprint}
+        onCompleteSprint={handleCompleteSprint}
+        allTasksCompleted={allTasksCompleted}
+      />
       
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 mt-8">
         <h3 className="text-lg font-medium">Sprint Board</h3>
-        
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIsAddColumnModalOpen(true)}
-            className="scrum-button-secondary flex items-center gap-1 text-sm"
-            disabled={sprint.status === "completed"}
-          >
-            <Plus className="h-4 w-4" />
-            <span>Add Column</span>
-          </button>
-        </div>
       </div>
       
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 pb-4 overflow-x-auto">
+        <div className="flex gap-4 pb-4 overflow-x-auto">
           {columnOrder.map((columnId) => {
             const column = columns[columnId];
             
@@ -305,32 +219,19 @@ const SprintBoard: React.FC = () => {
             ).filter(Boolean);
             
             return (
-              <div key={columnId} className="min-w-[270px]">
+              <div key={columnId} className="min-w-[270px] max-w-[270px] flex-shrink-0">
                 <div className="bg-scrum-card border border-scrum-border rounded-md h-full flex flex-col">
                   <div className="flex items-center justify-between p-3 border-b border-scrum-border">
                     <h4 className="font-medium text-sm">{column.title}</h4>
-                    <div className="flex items-center">
-                      {sprint.status !== "completed" && (
-                        <button
-                          onClick={() => handleCreateTaskInColumn(columnId)}
-                          className="text-scrum-text-secondary hover:text-white transition-colors mr-2"
-                          title={`Add task to ${column.title}`}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </button>
-                      )}
-                      
-                      {!["todo", "in-progress", "done"].includes(columnId) && (
-                        <button
-                          onClick={() => handleRemoveColumn(columnId)}
-                          className="text-scrum-text-secondary hover:text-destructive transition-colors"
-                          disabled={sprint.status === "completed"}
-                          title="Remove column"
-                        >
-                          <Trash className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
+                    {sprint.status !== "completed" && (
+                      <button
+                        onClick={() => handleCreateTaskInColumn(columnId)}
+                        className="text-scrum-text-secondary hover:text-white transition-colors"
+                        title={`Add task to ${column.title}`}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                   
                   <Droppable droppableId={columnId} isDropDisabled={sprint.status === "completed"}>
@@ -366,6 +267,12 @@ const SprintBoard: React.FC = () => {
                           )
                         ))}
                         {provided.placeholder}
+                        
+                        {columnTasks.length === 0 && (
+                          <div className="text-center py-4 text-scrum-text-secondary text-sm italic">
+                            No tasks
+                          </div>
+                        )}
                       </div>
                     )}
                   </Droppable>
@@ -383,13 +290,6 @@ const SprintBoard: React.FC = () => {
         />
       )}
       
-      {isAddColumnModalOpen && (
-        <AddColumnModal
-          onClose={() => setIsAddColumnModalOpen(false)}
-          onAdd={handleAddColumn}
-        />
-      )}
-      
       {creatingTaskInColumn && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in">
           <div className="bg-scrum-card border border-scrum-border rounded-lg p-6 w-full max-w-lg animate-fade-up">
@@ -401,6 +301,87 @@ const SprintBoard: React.FC = () => {
           </div>
         </div>
       )}
+      
+      {isCompleteDialogOpen && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in">
+          <div className="bg-scrum-card border border-scrum-border rounded-lg p-6 w-full max-w-md animate-fade-up">
+            <div className="mb-6 flex items-start gap-3">
+              <AlertTriangle className="text-yellow-500 h-5 w-5 mt-0.5" />
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Complete Sprint</h3>
+                <p className="text-scrum-text-secondary">
+                  Not all tasks are in the "DONE" column. Do you still want to complete this sprint?
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setIsCompleteDialogOpen(false)}
+                className="scrum-button-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmCompleteSprint}
+                className="scrum-button-warning"
+              >
+                Complete Anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+interface SprintHeaderProps {
+  sprint: {
+    id: string;
+    title: string;
+    description: string;
+    projectId: string;
+    startDate: string;
+    endDate: string;
+    status: 'planned' | 'in-progress' | 'completed';
+  };
+  onCompleteSprint: () => void;
+  allTasksCompleted: boolean;
+}
+
+const SprintHeader: React.FC<SprintHeaderProps> = ({ 
+  sprint, 
+  onCompleteSprint,
+  allTasksCompleted
+}) => {
+  const formatDateRange = (start: string, end: string) => {
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    
+    return `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
+  };
+  
+  return (
+    <div className="flex items-center justify-between p-4 border-b border-scrum-border">
+      <div>
+        <h1 className="font-bold text-xl">{sprint.title}</h1>
+        <div className="text-sm text-scrum-text-secondary">
+          {formatDateRange(sprint.startDate, sprint.endDate)}
+        </div>
+      </div>
+      
+      <div>
+        {sprint.status !== "completed" && (
+          <button
+            onClick={onCompleteSprint}
+            className={`flex items-center gap-1 ${allTasksCompleted ? 'scrum-button-success' : 'scrum-button-warning'}`}
+          >
+            <CheckCircle className="h-4 w-4" />
+            <span>Complete Sprint</span>
+          </button>
+        )}
+      </div>
     </div>
   );
 };
@@ -416,7 +397,8 @@ const NewTaskForm: React.FC<{
   const [assignedTo, setAssignedTo] = useState("");
   const [storyPoints, setStoryPoints] = useState<number | "">("");
   
-  const { addTask } = useProjects();
+  const { addTask, getSprint } = useProjects();
+  const sprint = getSprint(sprintId);
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -426,11 +408,17 @@ const NewTaskForm: React.FC<{
       return;
     }
     
+    if (!sprint) {
+      toast.error("Sprint not found");
+      return;
+    }
+    
     try {
       await addTask({
         title,
         description,
         sprintId,
+        projectId: sprint.projectId,
         status: initialStatus as any,
         assignedTo: assignedTo || undefined,
         priority: priority || undefined,

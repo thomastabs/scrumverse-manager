@@ -1,0 +1,107 @@
+
+import React, { useState } from "react";
+import { findUserByEmailOrUsername, addCollaborator } from "@/lib/supabase";
+import { ProjectRole } from "@/types";
+import { UserPlus, Check, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+
+interface AddCollaboratorFormProps {
+  projectId: string;
+  onCollaboratorAdded: () => void;
+}
+
+const AddCollaboratorForm: React.FC<AddCollaboratorFormProps> = ({ 
+  projectId,
+  onCollaboratorAdded 
+}) => {
+  const [userIdentifier, setUserIdentifier] = useState("");
+  const [role, setRole] = useState<ProjectRole>("viewer");
+  const [loading, setLoading] = useState(false);
+  
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!userIdentifier.trim()) {
+      toast.error("Please enter a username or email");
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      // First find the user
+      const user = await findUserByEmailOrUsername(userIdentifier);
+      
+      if (!user) {
+        toast.error("User not found");
+        return;
+      }
+      
+      // Then add them as a collaborator
+      await addCollaborator(projectId, user.id, role);
+      
+      toast.success(`${user.username} added as a collaborator`);
+      setUserIdentifier("");
+      onCollaboratorAdded();
+    } catch (error) {
+      console.error("Error adding collaborator:", error);
+      toast.error("Failed to add collaborator");
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  return (
+    <div className="mb-6">
+      <div className="flex items-center gap-2 mb-4">
+        <UserPlus className="h-5 w-5 text-scrum-text-secondary" />
+        <h3 className="text-lg font-semibold">Add Collaborator</h3>
+      </div>
+      
+      <form onSubmit={handleSubmit} className="bg-scrum-card border border-scrum-border rounded-md p-4">
+        <div className="mb-4">
+          <label className="block mb-2 text-sm">
+            Username or Email
+          </label>
+          <input
+            type="text"
+            value={userIdentifier}
+            onChange={(e) => setUserIdentifier(e.target.value)}
+            className="scrum-input"
+            placeholder="Enter username or email"
+          />
+        </div>
+        
+        <div className="mb-4">
+          <label className="block mb-2 text-sm">
+            Role
+          </label>
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value as ProjectRole)}
+            className="scrum-input"
+          >
+            <option value="viewer">Viewer - Can only view projects</option>
+            <option value="member">Member - Can create and manage sprints</option>
+            <option value="admin">Admin - Full access including backlog</option>
+          </select>
+        </div>
+        
+        <button
+          type="submit"
+          disabled={loading || !userIdentifier.trim()}
+          className="scrum-button flex items-center gap-2"
+        >
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Check className="h-4 w-4" />
+          )}
+          <span>Add Collaborator</span>
+        </button>
+      </form>
+    </div>
+  );
+};
+
+export default AddCollaboratorForm;

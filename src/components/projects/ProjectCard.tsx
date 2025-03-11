@@ -16,7 +16,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project }) => {
     : "";
   
   return (
-    <div className="scrum-card hover:border-scrum-highlight animate-fade-up">
+    <div className="bg-scrum-card border border-scrum-border p-6 rounded-lg hover:border-scrum-highlight transition-colors">
       <div className="mb-4">
         <h3 className="text-xl font-bold mb-1">{project.title}</h3>
         <p className="text-scrum-text-secondary text-sm mb-4">{project.description}</p>
@@ -33,7 +33,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project }) => {
         <span className="text-xs text-scrum-text-secondary">{formattedDate}</span>
         <button
           onClick={() => navigate(`/projects/${project.id}`)}
-          className="scrum-button"
+          className="bg-scrum-button text-white text-sm py-2 px-4 rounded hover:bg-scrum-button-hover transition-colors"
         >
           Open Project
         </button>

@@ -12,7 +12,6 @@ import Login from "./pages/Auth/Login";
 import Register from "./pages/Auth/Register";
 import Dashboard from "./pages/Dashboard";
 import Projects from "./pages/Projects";
-import Collaborations from "./pages/Collaborations";
 import ProjectLayout from "./components/layout/ProjectLayout";
 import ProjectDetail from "./pages/ProjectDetail";
 import BurndownChart from "./pages/BurndownChart";
@@ -79,7 +78,6 @@ const App = () => (
               {/* Protected routes */}
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
-              <Route path="/collaborations" element={<ProtectedRoute><Collaborations /></ProtectedRoute>} />
               
               {/* Project routes */}
               <Route path="/projects/:projectId" element={<ProtectedRoute><ProjectLayout /></ProtectedRoute>}>

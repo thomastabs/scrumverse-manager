@@ -87,36 +87,6 @@ export const findUserByEmailOrUsername = async (emailOrUsername: string) => {
 // Helper function to add a collaborator to a project
 export const addCollaborator = async (projectId: string, userId: string, role: 'viewer' | 'member' | 'admin') => {
   try {
-    // First check if the project exists and the current user is the owner
-    const { data: userData, error: userError } = await supabase.auth.getUser();
-    if (userError) throw userError;
-    
-    const { data: projectData, error: projectError } = await supabase
-      .from('projects')
-      .select('owner_id')
-      .eq('id', projectId)
-      .single();
-      
-    if (projectError) throw projectError;
-    
-    if (!projectData) {
-      throw new Error('Project not found');
-    }
-    
-    // Get user ID from users table based on auth email
-    const { data: currentUserData, error: currentUserError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', userData.user?.email)
-      .single();
-      
-    if (currentUserError) throw currentUserError;
-    
-    // Check if current user is the owner
-    if (projectData.owner_id !== currentUserData.id) {
-      throw new Error('Only project owners can add collaborators');
-    }
-    
     const { data, error } = await supabase
       .from('collaborators')
       .insert({
@@ -214,7 +184,6 @@ export const fetchCollaborativeProjects = async (userId: string) => {
           end_goal, 
           created_at, 
           updated_at,
-          owner_id,
           owner:owner_id (username, email)
         )
       `)

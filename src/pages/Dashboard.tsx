@@ -1,123 +1,69 @@
-import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+
+import React from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useProjects } from "@/context/ProjectContext";
-import { Project } from "@/types";
-import { Plus, ListChecks, Flame, Users } from "lucide-react";
-import RecentProjects from "@/components/dashboard/RecentProjects";
-import CollaborativeProjectsList from "@/components/collaborations/CollaborativeProjectsList";
+import Navbar from "@/components/layout/Navbar";
+import ProjectCard from "@/components/projects/ProjectCard";
+import NewProjectButton from "@/components/projects/NewProjectButton";
+import NavLink from "@/components/ui/NavLink";
+import { Folder, Users, LayoutDashboard } from "lucide-react";
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const { projects } = useProjects();
-  const [recentProjects, setRecentProjects] = useState<Project[]>([]);
 
-  useEffect(() => {
-    if (projects && projects.length > 0) {
-      // Sort projects by creation date and get the 5 most recent
-      const sortedProjects = [...projects].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setRecentProjects(sortedProjects.slice(0, 5));
-    } else {
-      setRecentProjects([]);
-    }
-  }, [projects]);
+  // Get the 3 most recent projects
+  const recentProjects = [...projects]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 3);
 
   return (
     <div className="min-h-screen pt-16 animate-fade-in">
-      <div className="container px-6 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold">
-              Welcome, {user?.username}!
-            </h1>
-            <p className="text-scrum-text-secondary">
-              Here's what's happening with your projects today.
-            </p>
-          </div>
-          <Link
-            to="/create-project"
-            className="scrum-button"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Create Project
-          </Link>
+      <Navbar />
+      
+      <div className="container px-4 py-8">
+        <div className="flex items-center mb-8">
+          <h1 className="text-2xl font-bold">Dashboard</h1>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          <div className="scrum-card flex items-center gap-4">
-            <div className="rounded-full bg-blue-100 p-3 text-blue-500">
-              <ListChecks className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-sm text-scrum-text-secondary">Total Projects</p>
-              <p className="text-xl font-semibold">{projects?.length || 0}</p>
-            </div>
-          </div>
-
-          <div className="scrum-card flex items-center gap-4">
-            <div className="rounded-full bg-green-100 p-3 text-green-500">
-              <Flame className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-sm text-scrum-text-secondary">Sprints Active</p>
-              <p className="text-xl font-semibold">4</p>
-            </div>
-          </div>
-
-          <div className="scrum-card flex items-center gap-4">
-            <div className="rounded-full bg-red-100 p-3 text-red-500">
-              <ListChecks className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-sm text-scrum-text-secondary">Tasks Due</p>
-              <p className="text-xl font-semibold">12</p>
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold flex items-center gap-2">
-              <ListChecks className="h-5 w-5 text-scrum-text-secondary" />
+        <div className="mb-8">
+          <div className="flex items-center gap-2 bg-scrum-card rounded-md border border-scrum-border p-1 w-fit mb-6">
+            <NavLink to="/" end={true}>
+              <LayoutDashboard className="h-4 w-4 mr-1" />
+              <span>Overview</span>
+            </NavLink>
+            <NavLink to="/projects">
+              <Folder className="h-4 w-4 mr-1" />
               <span>My Projects</span>
-            </h2>
-            <Link
-              to="/projects"
-              className="text-sm text-blue-500 hover:underline"
-            >
-              View All
-            </Link>
-          </div>
-          {projects && projects.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {projects.slice(0, 3).map((project) => (
-                <div key={project.id} className="scrum-card">
-                  <Link to={`/projects/${project.id}`}>
-                    <h3 className="text-lg font-semibold mb-2">{project.title}</h3>
-                    <p className="text-scrum-text-secondary text-sm">{project.description}</p>
-                  </Link>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 bg-scrum-card border border-scrum-border rounded-md">
-              <ListChecks className="h-12 w-12 mx-auto mb-4 text-scrum-text-secondary opacity-50" />
-              <p className="text-scrum-text-secondary">You don't have any projects yet. Create one to get started!</p>
-            </div>
-          )}
-        </div>
-
-        <RecentProjects recentProjects={recentProjects} />
-        
-        <div className="mt-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold flex items-center gap-2">
-              <Users className="h-5 w-5 text-scrum-text-secondary" />
+            </NavLink>
+            <NavLink to="/collaborations">
+              <Users className="h-4 w-4 mr-1" />
               <span>My Collaborations</span>
-            </h2>
+            </NavLink>
           </div>
-          
-          <CollaborativeProjectsList />
+
+          <div className="bg-scrum-card border border-scrum-border rounded-lg p-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+              <div>
+                <h2 className="text-xl font-bold">Recent Projects</h2>
+                <p className="text-scrum-text-secondary">Your most recently created projects</p>
+              </div>
+              <NewProjectButton />
+            </div>
+
+            {recentProjects.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-scrum-text-secondary mb-4">You don't have any projects yet</p>
+                <NewProjectButton />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {recentProjects.map((project) => (
+                  <ProjectCard key={project.id} project={project} />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

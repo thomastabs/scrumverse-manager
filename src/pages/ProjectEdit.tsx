@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useProject } from "@/context/ProjectContext";
+import { useProjects } from "@/context/ProjectContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,7 +8,7 @@ import { toast } from "sonner";
 
 const ProjectEdit: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
-  const { projects, updateProject } = useProject();
+  const { projects, updateProject } = useProjects();
   const navigate = useNavigate();
   
   const [title, setTitle] = useState("");

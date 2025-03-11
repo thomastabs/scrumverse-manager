@@ -1,5 +1,5 @@
-
 import React, { useState } from "react";
+import { useProjects } from "@/context/ProjectContext";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,11 +17,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useProject } from "@/context/ProjectContext";
 import { toast } from "sonner";
 
 const AddTaskModal: React.FC = () => {
-  const { showAddTaskModal, setShowAddTaskModal, activeSprintId, createTask } = useProject();
+  const { showAddTaskModal, setShowAddTaskModal, activeSprintId, createTask } = useProjects();
   
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");

@@ -1,14 +1,18 @@
-
 import React from "react";
 import { Link } from "react-router-dom";
 import { Calendar, Clock, Users } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useProject } from "@/context/ProjectContext";
+import { useProjects } from "@/context/ProjectContext";
+import { Project } from "@/types";
 
-const RecentProjects: React.FC = () => {
-  const { projects } = useProject();
+interface RecentProjectsProps {
+  recentProjects: Project[];
+}
+
+const RecentProjects: React.FC<RecentProjectsProps> = () => {
+  const { projects } = useProjects();
   
   // Get the 3 most recently updated projects
   const recentProjects = [...projects]

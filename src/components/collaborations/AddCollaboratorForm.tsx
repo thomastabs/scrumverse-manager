@@ -4,6 +4,7 @@ import { findUserByEmailOrUsername, addCollaborator } from "@/lib/supabase";
 import { ProjectRole } from "@/types";
 import { UserPlus, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
 
 interface AddCollaboratorFormProps {
   projectId: string;
@@ -14,6 +15,7 @@ const AddCollaboratorForm: React.FC<AddCollaboratorFormProps> = ({
   projectId,
   onCollaboratorAdded 
 }) => {
+  const { user } = useAuth();
   const [userIdentifier, setUserIdentifier] = useState("");
   const [role, setRole] = useState<ProjectRole>("viewer");
   const [loading, setLoading] = useState(false);
@@ -25,22 +27,35 @@ const AddCollaboratorForm: React.FC<AddCollaboratorFormProps> = ({
       toast.error("Please enter a username or email");
       return;
     }
+
+    if (!user) {
+      toast.error("You must be logged in to add collaborators");
+      return;
+    }
     
     setLoading(true);
     
     try {
       // First find the user
-      const user = await findUserByEmailOrUsername(userIdentifier);
+      const foundUser = await findUserByEmailOrUsername(userIdentifier);
       
-      if (!user) {
+      if (!foundUser) {
         toast.error("User not found");
+        setLoading(false);
+        return;
+      }
+
+      // Don't allow adding yourself as a collaborator
+      if (foundUser.id === user.id) {
+        toast.error("You can't add yourself as a collaborator");
+        setLoading(false);
         return;
       }
       
       // Then add them as a collaborator
-      await addCollaborator(projectId, user.id, role);
+      await addCollaborator(projectId, foundUser.id, role);
       
-      toast.success(`${user.username} added as a collaborator`);
+      toast.success(`${foundUser.username} added as a collaborator`);
       setUserIdentifier("");
       onCollaboratorAdded();
     } catch (error) {

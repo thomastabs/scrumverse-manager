@@ -7,6 +7,23 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
+// Helper function to get authenticated client
+export const getAuthenticatedClient = () => {
+  const user = JSON.parse(localStorage.getItem("scrumUser") || "{}");
+  // For our demo app, we manually set auth header with user ID
+  // In a real app with Supabase Auth, this would use built-in auth tokens
+  if (user && user.id) {
+    return createClient(supabaseUrl, supabaseKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${user.id}`,
+        },
+      },
+    });
+  }
+  return supabase;
+};
+
 // Helper function to fetch columns for a sprint
 export const fetchSprintColumns = async (sprintId: string, userId: string) => {
   try {
@@ -87,7 +104,8 @@ export const findUserByEmailOrUsername = async (emailOrUsername: string) => {
 // Helper function to add a collaborator to a project
 export const addCollaborator = async (projectId: string, userId: string, role: 'viewer' | 'member' | 'admin') => {
   try {
-    const { data, error } = await supabase
+    const authClient = getAuthenticatedClient();
+    const { data, error } = await authClient
       .from('collaborators')
       .insert({
         project_id: projectId,
@@ -108,7 +126,8 @@ export const addCollaborator = async (projectId: string, userId: string, role: '
 // Helper function to fetch collaborators for a project
 export const fetchProjectCollaborators = async (projectId: string) => {
   try {
-    const { data, error } = await supabase
+    const authClient = getAuthenticatedClient();
+    const { data, error } = await authClient
       .from('collaborators')
       .select(`
         id,
@@ -141,7 +160,8 @@ export const fetchProjectCollaborators = async (projectId: string) => {
 // Helper function to remove a collaborator from a project
 export const removeCollaborator = async (collaboratorId: string) => {
   try {
-    const { error } = await supabase
+    const authClient = getAuthenticatedClient();
+    const { error } = await authClient
       .from('collaborators')
       .delete()
       .eq('id', collaboratorId);
@@ -157,7 +177,8 @@ export const removeCollaborator = async (collaboratorId: string) => {
 // Helper function to update a collaborator's role
 export const updateCollaboratorRole = async (collaboratorId: string, role: 'viewer' | 'member' | 'admin') => {
   try {
-    const { error } = await supabase
+    const authClient = getAuthenticatedClient();
+    const { error } = await authClient
       .from('collaborators')
       .update({ role })
       .eq('id', collaboratorId);

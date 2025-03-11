@@ -1,7 +1,8 @@
+
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Clock, Calendar, CheckSquare, ListTodo } from "lucide-react";
+import { ListChecks, Calendar, CheckSquare, ListTodo } from "lucide-react";
 import { useProjects } from "@/context/ProjectContext";
 import { useAuth } from "@/context/AuthContext";
 import RecentProjects from "@/components/dashboard/RecentProjects";
@@ -28,7 +29,7 @@ const Dashboard: React.FC = () => {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <ListTodo className="h-4 w-4" />
+              <ListChecks className="h-4 w-4" />
               Projects
             </CardTitle>
           </CardHeader>
@@ -54,7 +55,7 @@ const Dashboard: React.FC = () => {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <CheckSquare className="h-4 w-4" />
+              <ListTodo className="h-4 w-4" />
               Tasks
             </CardTitle>
           </CardHeader>
@@ -67,7 +68,7 @@ const Dashboard: React.FC = () => {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Clock className="h-4 w-4" />
+              <CheckSquare className="h-4 w-4" />
               Completed
             </CardTitle>
           </CardHeader>
@@ -79,7 +80,9 @@ const Dashboard: React.FC = () => {
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <RecentProjects />
+        <div className="col-span-1 lg:col-span-1">
+          <RecentProjects />
+        </div>
         
         <Card className="col-span-1 lg:col-span-2">
           <CardHeader>

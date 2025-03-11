@@ -8,21 +8,17 @@ import { Button } from "@/components/ui/button";
 import { useProjects } from "@/context/ProjectContext";
 import { Project } from "@/types";
 
-interface RecentProjectsProps {
-  recentProjects?: Project[];
-}
-
-const RecentProjects: React.FC<RecentProjectsProps> = ({ recentProjects: propRecentProjects }) => {
+const RecentProjects: React.FC = () => {
   const { projects } = useProjects();
   
-  // Get the 3 most recently updated projects from props or generate them if not provided
-  const recentProjects = propRecentProjects || [...projects]
+  // Get the 3 most recently updated projects
+  const recentProjects = [...projects]
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     .slice(0, 3);
 
   if (recentProjects.length === 0) {
     return (
-      <Card className="col-span-2">
+      <Card>
         <CardHeader>
           <CardTitle>Recent Projects</CardTitle>
         </CardHeader>
@@ -39,7 +35,7 @@ const RecentProjects: React.FC<RecentProjectsProps> = ({ recentProjects: propRec
   }
 
   return (
-    <Card className="col-span-2">
+    <Card>
       <CardHeader>
         <CardTitle>Recent Projects</CardTitle>
       </CardHeader>

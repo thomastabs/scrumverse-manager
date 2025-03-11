@@ -179,13 +179,11 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
 
       if (data) {
-        // Map the database status values to ensure they are consistent
         const formattedTasks: Task[] = data.map(task => ({
           id: task.id,
           title: task.title,
           description: task.description,
           sprintId: task.sprint_id || '',
-          // Ensure we preserve the exact status from the database
           status: task.status,
           assignedTo: task.assign_to,
           storyPoints: task.story_points,
@@ -194,8 +192,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           updatedAt: task.created_at,
           projectId: task.project_id
         }));
-
-        console.log('Fetched tasks with statuses:', formattedTasks.map(t => ({ id: t.id, status: t.status })));
 
         setTasks(prev => {
           const filtered = prev.filter(t => t.sprintId !== sprintId);
@@ -225,7 +221,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
 
       if (data) {
-        console.log('Fetched backlog tasks:', data);
         const formattedTasks: Task[] = data.map(task => ({
           id: task.id,
           title: task.title,
@@ -744,7 +739,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
 
       if (data && data.length > 0) {
-        // Extract the collaborative projects and format them
         const collaborativeProjects = data
           .filter(item => item.projects)
           .map(item => {
@@ -763,15 +757,12 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             };
           });
 
-        // Add collaborative projects to the projects state
         setProjects(prev => {
-          // Filter out any duplicates (in case user is both owner and collaborator)
           const existingIds = prev.map(p => p.id);
           const newCollaborativeProjects = collaborativeProjects.filter(p => !existingIds.includes(p.id));
           return [...prev, ...newCollaborativeProjects];
         });
 
-        // Fetch sprints and backlog tasks for collaborative projects
         collaborativeProjects.forEach(project => {
           fetchSprints(project.id);
           fetchBacklogTasks(project.id);
@@ -782,9 +773,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
-  // Create a wrapper for addTask to support the createTask name used in the component
   const createTask = async (task: Omit<Task, "id" | "createdAt" | "updatedAt">) => {
-    return await addTask(task);
+    await addTask(task);
   };
 
   return (

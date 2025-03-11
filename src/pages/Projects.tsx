@@ -11,7 +11,7 @@ const Projects: React.FC = () => {
   const { projects } = useProjects();
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen pt-16 animate-fade-in">
       <Navbar />
       
       <div className="container px-4 py-8">

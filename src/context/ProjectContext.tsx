@@ -8,10 +8,6 @@ interface ProjectContextType {
   sprints: Sprint[];
   tasks: Task[];
   burndownData: Record<string, BurndownData[]>;
-  showAddTaskModal: boolean;
-  setShowAddTaskModal: (show: boolean) => void;
-  activeSprintId: string | null;
-  setActiveSprintId: (id: string | null) => void;
   addProject: (project: Omit<Project, "id" | "createdAt" | "updatedAt">) => Promise<Project>;
   getProject: (id: string) => Project | undefined;
   updateProject: (id: string, project: Partial<Omit<Project, "id">>) => Promise<Project>;
@@ -29,7 +25,6 @@ interface ProjectContextType {
   getBacklogTasks: (projectId: string) => Task[];
   getBurndownData: (projectId: string) => BurndownData[];
   fetchCollaborativeProjects: () => Promise<void>;
-  createTask: (task: Omit<Task, "id" | "createdAt" | "updatedAt">) => Promise<void>;
 }
 
 const ProjectContext = createContext<ProjectContextType>({
@@ -37,10 +32,6 @@ const ProjectContext = createContext<ProjectContextType>({
   sprints: [],
   tasks: [],
   burndownData: {},
-  showAddTaskModal: false,
-  setShowAddTaskModal: () => {},
-  activeSprintId: null,
-  setActiveSprintId: () => {},
   addProject: async () => ({ id: "", title: "", description: "", createdAt: "", updatedAt: "" }),
   getProject: () => undefined,
   updateProject: async () => ({ id: "", title: "", description: "", createdAt: "", updatedAt: "" }),
@@ -58,7 +49,6 @@ const ProjectContext = createContext<ProjectContextType>({
   getBacklogTasks: () => [],
   getBurndownData: () => [],
   fetchCollaborativeProjects: async () => {},
-  createTask: async () => {},
 });
 
 export const useProjects = () => useContext(ProjectContext);
@@ -69,8 +59,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [sprints, setSprints] = useState<Sprint[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [burndownData, setBurndownData] = useState<Record<string, BurndownData[]>>({});
-  const [showAddTaskModal, setShowAddTaskModal] = useState(false);
-  const [activeSprintId, setActiveSprintId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -179,11 +167,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
 
       if (data) {
+        // Map the database status values to ensure they are consistent
         const formattedTasks: Task[] = data.map(task => ({
           id: task.id,
           title: task.title,
           description: task.description,
           sprintId: task.sprint_id || '',
+          // Ensure we preserve the exact status from the database
           status: task.status,
           assignedTo: task.assign_to,
           storyPoints: task.story_points,
@@ -192,6 +182,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           updatedAt: task.created_at,
           projectId: task.project_id
         }));
+
+        console.log('Fetched tasks with statuses:', formattedTasks.map(t => ({ id: t.id, status: t.status })));
 
         setTasks(prev => {
           const filtered = prev.filter(t => t.sprintId !== sprintId);
@@ -221,6 +213,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
 
       if (data) {
+        console.log('Fetched backlog tasks:', data);
         const formattedTasks: Task[] = data.map(task => ({
           id: task.id,
           title: task.title,
@@ -739,6 +732,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
 
       if (data && data.length > 0) {
+        // Extract the collaborative projects and format them
         const collaborativeProjects = data
           .filter(item => item.projects)
           .map(item => {
@@ -757,12 +751,15 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             };
           });
 
+        // Add collaborative projects to the projects state
         setProjects(prev => {
+          // Filter out any duplicates (in case user is both owner and collaborator)
           const existingIds = prev.map(p => p.id);
           const newCollaborativeProjects = collaborativeProjects.filter(p => !existingIds.includes(p.id));
           return [...prev, ...newCollaborativeProjects];
         });
 
+        // Fetch sprints and backlog tasks for collaborative projects
         collaborativeProjects.forEach(project => {
           fetchSprints(project.id);
           fetchBacklogTasks(project.id);
@@ -773,10 +770,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
-  const createTask = async (task: Omit<Task, "id" | "createdAt" | "updatedAt">) => {
-    await addTask(task);
-  };
-
   return (
     <ProjectContext.Provider
       value={{
@@ -784,10 +777,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         sprints,
         tasks,
         burndownData,
-        showAddTaskModal,
-        setShowAddTaskModal,
-        activeSprintId,
-        setActiveSprintId,
         addProject,
         getProject,
         updateProject,
@@ -805,7 +794,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         getBacklogTasks,
         getBurndownData,
         fetchCollaborativeProjects,
-        createTask,
       }}
     >
       {children}

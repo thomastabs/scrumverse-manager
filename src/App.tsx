@@ -1,18 +1,17 @@
-
 import React from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ProjectProvider } from './context/ProjectContext';
 import Dashboard from './pages/Dashboard';
-import Login from './pages/Auth/Login';
-import Register from './pages/Auth/Register';
+import Login from './pages/Login';
+import Register from './pages/Register';
 import Projects from './pages/Projects';
 import ProjectLayout from './components/layout/ProjectLayout';
-import ProjectDetails from './pages/ProjectDetail';
+import ProjectDetails from './pages/ProjectDetails';
 import ProjectEdit from './pages/ProjectEdit';
-import ProjectBacklog from './pages/ProductBacklog';
+import ProjectBacklog from './pages/ProjectBacklog';
 import ProjectTimeline from './pages/ProjectTimeline';
-import ProjectBurndown from './pages/BurndownChart';
+import ProjectBurndown from './pages/ProjectBurndown';
 import ProjectCollaborators from './pages/ProjectCollaborators';
 import AddTaskModal from './components/task/AddTaskModal';
 

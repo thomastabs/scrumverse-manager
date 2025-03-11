@@ -8,7 +8,7 @@ const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
 
   return (
-    <header className="bg-black border-b border-gray-800 px-6 py-3 flex items-center justify-between z-10">
+    <header className="fixed top-0 left-0 right-0 h-16 bg-scrum-card border-b border-scrum-border px-6 flex items-center justify-between z-10">
       <div className="flex items-center gap-2">
         <Link to="/" className="flex items-center gap-2">
           <Check className="h-6 w-6 text-white" />
@@ -18,13 +18,13 @@ const Navbar: React.FC = () => {
 
       {user && (
         <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-400">{user.email}</span>
-          <div className="h-8 w-8 rounded-full bg-white text-black flex items-center justify-center font-semibold">
+          <span className="text-sm text-scrum-text-secondary">{user.email}</span>
+          <div className="h-8 w-8 rounded-full bg-white text-scrum-card flex items-center justify-center font-semibold">
             {user.username?.charAt(0).toUpperCase() || "U"}
           </div>
           <button
             onClick={logout}
-            className="text-gray-400 hover:text-white transition-colors"
+            className="text-scrum-text-secondary hover:text-white transition-colors"
             title="Sign Out"
           >
             <LogOut className="h-5 w-5" />

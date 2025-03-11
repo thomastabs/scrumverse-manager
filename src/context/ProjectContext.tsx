@@ -8,6 +8,10 @@ interface ProjectContextType {
   sprints: Sprint[];
   tasks: Task[];
   burndownData: Record<string, BurndownData[]>;
+  showAddTaskModal: boolean;
+  setShowAddTaskModal: (show: boolean) => void;
+  activeSprintId: string | null;
+  setActiveSprintId: (id: string | null) => void;
   addProject: (project: Omit<Project, "id" | "createdAt" | "updatedAt">) => Promise<Project>;
   getProject: (id: string) => Project | undefined;
   updateProject: (id: string, project: Partial<Omit<Project, "id">>) => Promise<Project>;
@@ -25,6 +29,7 @@ interface ProjectContextType {
   getBacklogTasks: (projectId: string) => Task[];
   getBurndownData: (projectId: string) => BurndownData[];
   fetchCollaborativeProjects: () => Promise<void>;
+  createTask: (task: Omit<Task, "id" | "createdAt" | "updatedAt">) => Promise<void>;
 }
 
 const ProjectContext = createContext<ProjectContextType>({
@@ -32,6 +37,10 @@ const ProjectContext = createContext<ProjectContextType>({
   sprints: [],
   tasks: [],
   burndownData: {},
+  showAddTaskModal: false,
+  setShowAddTaskModal: () => {},
+  activeSprintId: null,
+  setActiveSprintId: () => {},
   addProject: async () => ({ id: "", title: "", description: "", createdAt: "", updatedAt: "" }),
   getProject: () => undefined,
   updateProject: async () => ({ id: "", title: "", description: "", createdAt: "", updatedAt: "" }),
@@ -49,6 +58,7 @@ const ProjectContext = createContext<ProjectContextType>({
   getBacklogTasks: () => [],
   getBurndownData: () => [],
   fetchCollaborativeProjects: async () => {},
+  createTask: async () => {},
 });
 
 export const useProjects = () => useContext(ProjectContext);
@@ -59,6 +69,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [sprints, setSprints] = useState<Sprint[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [burndownData, setBurndownData] = useState<Record<string, BurndownData[]>>({});
+  const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  const [activeSprintId, setActiveSprintId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -770,6 +782,11 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
+  // Create a wrapper for addTask to support the createTask name used in the component
+  const createTask = async (task: Omit<Task, "id" | "createdAt" | "updatedAt">) => {
+    return await addTask(task);
+  };
+
   return (
     <ProjectContext.Provider
       value={{
@@ -777,6 +794,10 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         sprints,
         tasks,
         burndownData,
+        showAddTaskModal,
+        setShowAddTaskModal,
+        activeSprintId,
+        setActiveSprintId,
         addProject,
         getProject,
         updateProject,
@@ -794,6 +815,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         getBacklogTasks,
         getBurndownData,
         fetchCollaborativeProjects,
+        createTask,
       }}
     >
       {children}

@@ -16,7 +16,10 @@ export const getAuthenticatedClient = () => {
     return createClient(supabaseUrl, supabaseKey, {
       global: {
         headers: {
-          Authorization: `Bearer ${user.id}`,
+          // Set the JWT claims with the user_id for RLS policies
+          Authorization: `Bearer ${JSON.stringify({
+            user_id: user.id
+          })}`,
         },
       },
     });

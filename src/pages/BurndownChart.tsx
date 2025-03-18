@@ -35,6 +35,7 @@ const BurndownChart: React.FC = () => {
   const { user } = useAuth();
   const [chartData, setChartData] = useState<BurndownDataPoint[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   const project = getProject(projectId || "");
@@ -50,13 +51,8 @@ const BurndownChart: React.FC = () => {
         const burndownData = await generateBurndownData();
         setChartData(burndownData);
         
-        try {
-          // Try to save to database but don't block the UI on this
-          await saveBurndownData(burndownData);
-        } catch (saveError) {
-          console.error("Error saving burndown data (non-blocking):", saveError);
-          // Don't set error state here as we've already loaded the chart data
-        }
+        // Save data in background, but don't block UI
+        saveBurndownDataSafely(burndownData);
       } catch (error) {
         console.error("Error generating burndown data:", error);
         setError("Failed to load burndown chart data");
@@ -69,34 +65,52 @@ const BurndownChart: React.FC = () => {
     fetchBurndownData();
   }, [projectId, user, tasks, sprints]);
   
-  const saveBurndownData = async (data: BurndownDataPoint[]) => {
-    if (!projectId || !user) return;
+  // New function for safer data saving with debounce
+  const saveBurndownDataSafely = async (data: BurndownDataPoint[]) => {
+    if (isSaving || !projectId || !user) return;
     
     try {
-      // First, try to clear existing data to avoid conflicts
-      await supabase
+      setIsSaving(true);
+      
+      // First clear existing data
+      const { error: deleteError } = await supabase
         .from('burndown_data')
         .delete()
-        .eq('project_id', projectId)
-        .eq('user_id', user.id);
+        .eq('project_id', projectId);
         
-      // Then insert new data
-      const { error } = await supabase
-        .from('burndown_data')
-        .insert(
-          data.map(item => ({
+      if (deleteError) {
+        console.log("Non-blocking delete error:", deleteError);
+        // Continue anyway
+      }
+      
+      // Wait a moment before inserting
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Insert data one by one with small delays to avoid overwhelming the DB
+      for (const item of data) {
+        const { error: insertError } = await supabase
+          .from('burndown_data')
+          .insert({
             project_id: projectId,
             user_id: user.id,
             date: item.date,
             ideal_points: item.ideal,
             actual_points: item.actual
-          }))
-        );
+          });
+          
+        if (insertError) {
+          console.log("Non-blocking insert error:", insertError);
+          // Don't break the loop, continue with other items
+        }
         
-      if (error) throw error;
+        // Small delay between inserts
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
     } catch (error) {
-      console.error("Error saving burndown data:", error);
-      throw error;
+      console.log("Background save error (non-blocking):", error);
+      // Don't show errors to user for background operations
+    } finally {
+      setIsSaving(false);
     }
   };
   

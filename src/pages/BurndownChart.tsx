@@ -16,6 +16,11 @@ import {
 import { format, parseISO, startOfDay, addDays, isBefore, isAfter, differenceInDays } from "date-fns";
 import { toast } from "sonner";
 import { BurndownData, Task } from "@/types";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
 
 interface BurndownDataPoint {
   date: string;
@@ -30,9 +35,7 @@ const BurndownChart: React.FC = () => {
   const { user } = useAuth();
   const [chartData, setChartData] = useState<BurndownDataPoint[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingChart, setIsLoadingChart] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
   
   const project = getProject(projectId || "");
   
@@ -43,21 +46,13 @@ const BurndownChart: React.FC = () => {
       setIsLoading(true);
       setError(null);
       try {
-        // Generate burndown data to keep it current with task status
-        setIsLoadingChart(true);
+        // Always generate burndown data to keep it current with task status
         const burndownData = await generateBurndownData();
         setChartData(burndownData);
-        setIsLoadingChart(false);
         
-        // Save to database as a background operation
         try {
-          if (user && projectId) {
-            const success = await saveBurndownData(burndownData);
-            if (!success && retryCount < 3) {
-              console.log(`Retry attempt ${retryCount + 1} for saving burndown data`);
-              setRetryCount(prev => prev + 1);
-            }
-          }
+          // Try to save to database but don't block the UI on this
+          await saveBurndownData(burndownData);
         } catch (saveError) {
           console.error("Error saving burndown data (non-blocking):", saveError);
           // Don't set error state here as we've already loaded the chart data
@@ -72,44 +67,36 @@ const BurndownChart: React.FC = () => {
     };
     
     fetchBurndownData();
-  }, [projectId, user, tasks, sprints, retryCount]);
+  }, [projectId, user, tasks, sprints]);
   
-  const saveBurndownData = async (data: BurndownDataPoint[]): Promise<boolean> => {
-    if (!projectId || !user) return false;
+  const saveBurndownData = async (data: BurndownDataPoint[]) => {
+    if (!projectId || !user) return;
     
     try {
-      // First, delete existing data to avoid conflicts
+      // First, try to clear existing data to avoid conflicts
       await supabase
         .from('burndown_data')
         .delete()
         .eq('project_id', projectId)
         .eq('user_id', user.id);
         
-      // Insert with a small delay to ensure delete completes
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
       // Then insert new data
-      for (const item of data) {
-        const { error } = await supabase
-          .from('burndown_data')
-          .insert({
+      const { error } = await supabase
+        .from('burndown_data')
+        .insert(
+          data.map(item => ({
             project_id: projectId,
             user_id: user.id,
             date: item.date,
             ideal_points: item.ideal,
             actual_points: item.actual
-          });
-          
-        if (error) {
-          console.error("Error inserting burndown data item:", error);
-          throw error;
-        }
-      }
-      
-      return true;
+          }))
+        );
+        
+      if (error) throw error;
     } catch (error) {
       console.error("Error saving burndown data:", error);
-      return false;
+      throw error;
     }
   };
   
@@ -233,7 +220,7 @@ const BurndownChart: React.FC = () => {
     return data;
   };
   
-  if (isLoading && !chartData.length) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-24">
         <div className="text-center">
@@ -244,7 +231,7 @@ const BurndownChart: React.FC = () => {
     );
   }
   
-  if (error && !chartData.length) {
+  if (error) {
     return (
       <div className="scrum-card p-6 text-center">
         <p className="text-red-500 mb-2">Error loading burndown data</p>
@@ -260,87 +247,75 @@ const BurndownChart: React.FC = () => {
         <p className="text-scrum-text-secondary">
           Tracking progress across all sprints in {project?.title || "this project"}
         </p>
-        {isLoadingChart && (
-          <div className="mt-2 flex items-center text-sm text-scrum-text-secondary">
-            <div className="w-4 h-4 border-2 border-scrum-accent border-t-transparent rounded-full animate-spin mr-2"></div>
-            <span>Updating chart data...</span>
-          </div>
-        )}
       </div>
       
-      <div className="scrum-card h-[500px] relative">
-        {chartData.length > 0 ? (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={chartData}
-              margin={{
-                top: 20,
-                right: 30,
-                left: 20,
-                bottom: 10,
-              }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-              <XAxis
-                dataKey="formattedDate"
-                stroke="#777"
-                tick={{ fill: "#777" }}
-                axisLine={{ stroke: "#444" }}
-              />
-              <YAxis
-                label={{ value: "Story Points Remaining", angle: -90, position: "insideLeft", fill: "#777" }}
-                stroke="#777"
-                tick={{ fill: "#777" }}
-                axisLine={{ stroke: "#444" }}
-              />
-              <Tooltip
-                content={({ active, payload }) => {
-                  if (active && payload && payload.length) {
-                    return (
-                      <div className="bg-scrum-card border border-scrum-border p-3 rounded">
-                        <p className="font-medium">{payload[0].payload.formattedDate}</p>
-                        <div className="mt-2 space-y-1">
-                          <p className="flex items-center text-sm">
-                            <span className="h-2 w-2 rounded-full bg-[#8884d8] mr-2"></span>
-                            <span>Ideal: {payload[0].value} points</span>
-                          </p>
-                          <p className="flex items-center text-sm">
-                            <span className="h-2 w-2 rounded-full bg-[#82ca9d] mr-2"></span>
-                            <span>Actual: {payload[1].value} points</span>
-                          </p>
-                        </div>
+      <div className="scrum-card h-[500px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart
+            data={chartData}
+            margin={{
+              top: 20,
+              right: 30,
+              left: 20,
+              bottom: 10,
+            }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+            <XAxis
+              dataKey="formattedDate"
+              stroke="#777"
+              tick={{ fill: "#777" }}
+              axisLine={{ stroke: "#444" }}
+            />
+            <YAxis
+              label={{ value: "Story Points Remaining", angle: -90, position: "insideLeft", fill: "#777" }}
+              stroke="#777"
+              tick={{ fill: "#777" }}
+              axisLine={{ stroke: "#444" }}
+            />
+            <Tooltip
+              content={({ active, payload }) => {
+                if (active && payload && payload.length) {
+                  return (
+                    <div className="bg-scrum-card border border-scrum-border p-3 rounded">
+                      <p className="font-medium">{payload[0].payload.formattedDate}</p>
+                      <div className="mt-2 space-y-1">
+                        <p className="flex items-center text-sm">
+                          <span className="h-2 w-2 rounded-full bg-[#8884d8] mr-2"></span>
+                          <span>Ideal: {payload[0].value} points</span>
+                        </p>
+                        <p className="flex items-center text-sm">
+                          <span className="h-2 w-2 rounded-full bg-[#82ca9d] mr-2"></span>
+                          <span>Actual: {payload[1].value} points</span>
+                        </p>
                       </div>
-                    );
-                  }
-                  return null;
-                }}
-              />
-              <Legend
-                wrapperStyle={{ color: "#fff" }}
-              />
-              <Line
-                type="monotone"
-                dataKey="ideal"
-                stroke="#8884d8"
-                name="Ideal Burndown"
-                dot={false}
-                activeDot={{ r: 8 }}
-              />
-              <Line
-                type="monotone"
-                dataKey="actual"
-                stroke="#82ca9d"
-                name="Actual Burndown"
-                dot={false}
-                activeDot={{ r: 8 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        ) : (
-          <div className="flex items-center justify-center h-full">
-            <p className="text-scrum-text-secondary">No data available for burndown chart</p>
-          </div>
-        )}
+                    </div>
+                  );
+                }
+                return null;
+              }}
+            />
+            <Legend
+              wrapperStyle={{ color: "#fff" }}
+            />
+            <Line
+              type="monotone"
+              dataKey="ideal"
+              stroke="#8884d8"
+              name="Ideal Burndown"
+              dot={false}
+              activeDot={{ r: 8 }}
+            />
+            <Line
+              type="monotone"
+              dataKey="actual"
+              stroke="#82ca9d"
+              name="Actual Burndown"
+              dot={false}
+              activeDot={{ r: 8 }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
       </div>
       
       <div className="scrum-card mt-6 p-4">

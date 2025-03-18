@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 import { Collaborator, BurndownData as BurndownDataType } from '@/types';
 
@@ -32,46 +33,7 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
 
 // Helper function to get authenticated client
 export const getAuthenticatedClient = () => {
-  const user = JSON.parse(localStorage.getItem("scrumUser") || "null");
-  
-  if (!user) return supabase;
-  
-  // Create a custom client with Authorization header for RLS
-  return createClient(supabaseUrl, supabaseKey, {
-    global: {
-      headers: {
-        'Authorization': `Bearer ${getCustomJwt(user.id)}`,
-        'Cache-Control': 'no-cache',
-      },
-      fetch: (url, options) => {
-        const controller = new AbortController();
-        const { signal } = controller;
-        
-        // Set a timeout to abort long-running requests
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
-        
-        return fetch(url, { 
-          ...options, 
-          signal,
-          cache: 'no-cache'
-        }).finally(() => clearTimeout(timeoutId));
-      }
-    }
-  });
-};
-
-// Helper function to generate a JWT-like token with user_id in the claims
-const getCustomJwt = (userId: string) => {
-  // This is a simplified mock JWT for our custom authentication
-  // In a real app, you would sign this token with a secret
-  const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const payload = btoa(JSON.stringify({ 
-    user_id: userId,
-    exp: Math.floor(Date.now() / 1000) + 3600
-  }));
-  const signature = btoa('mock_signature');
-  
-  return `${header}.${payload}.${signature}`;
+  return supabase;
 };
 
 // Add a retry wrapper for Supabase requests
@@ -419,18 +381,15 @@ export const fetchBurndownData = async (projectId: string, userId: string): Prom
 };
 
 // Updated helper to upsert burndown data for a project
-// First deletes existing entries and then inserts new ones
+// First deletes existing entries and then inserts new ones to avoid constraint errors
 export const upsertBurndownData = async (
   projectId: string, 
   userId: string,
   burndownData: BurndownDataType[]
 ): Promise<boolean> => {
   try {
-    // Get authenticated client for this user
-    const client = getAuthenticatedClient();
-    
     // First delete existing data for this project/user
-    const { error: deleteError } = await client
+    const { error: deleteError } = await supabase
       .from('burndown_data')
       .delete()
       .eq('project_id', projectId)
@@ -441,30 +400,22 @@ export const upsertBurndownData = async (
       return false;
     }
     
-    // Small delay to ensure delete completes
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Then insert new data
+    const dbData = burndownData.map(item => ({
+      project_id: projectId,
+      user_id: userId,
+      date: item.date,
+      ideal_points: item.ideal,
+      actual_points: item.actual
+    }));
     
-    // Insert one row at a time to minimize RLS errors
-    for (const item of burndownData) {
-      const dbItem = {
-        project_id: projectId,
-        user_id: userId,
-        date: item.date,
-        ideal_points: item.ideal,
-        actual_points: item.actual
-      };
+    const { error: insertError } = await supabase
+      .from('burndown_data')
+      .insert(dbData);
       
-      const { error: insertError } = await client
-        .from('burndown_data')
-        .insert(dbItem);
-        
-      if (insertError) {
-        console.error('Error inserting burndown data item:', insertError, dbItem);
-        return false;
-      }
-      
-      // Small delay between inserts to avoid race conditions
-      await new Promise(resolve => setTimeout(resolve, 50));
+    if (insertError) {
+      console.error('Error inserting burndown data:', insertError);
+      return false;
     }
     
     return true;

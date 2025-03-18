@@ -48,6 +48,11 @@ export interface BurndownData {
   date: string;
   ideal: number;
   actual: number;
+  // Add database field names for compatibility
+  ideal_points?: number;
+  actual_points?: number;
+  project_id?: string;
+  user_id?: string;
 }
 
 export type ProjectRole = 'viewer' | 'member' | 'admin';

@@ -363,6 +363,7 @@ export const fetchBurndownData = async (projectId: string, userId: string): Prom
       .from('burndown_data')
       .select('date, ideal_points, actual_points')
       .eq('project_id', projectId)
+      .eq('user_id', userId)
       .order('date', { ascending: true });
       
     if (error) throw error;
@@ -379,14 +380,27 @@ export const fetchBurndownData = async (projectId: string, userId: string): Prom
   }
 };
 
-// New helper to upsert burndown data for a project
+// Updated helper to upsert burndown data for a project
+// First deletes existing entries and then inserts new ones to avoid constraint errors
 export const upsertBurndownData = async (
   projectId: string, 
   userId: string,
   burndownData: BurndownDataType[]
 ): Promise<boolean> => {
   try {
-    // Convert our app format to database format
+    // First delete existing data for this project/user
+    const { error: deleteError } = await supabase
+      .from('burndown_data')
+      .delete()
+      .eq('project_id', projectId)
+      .eq('user_id', userId);
+      
+    if (deleteError) {
+      console.error('Error deleting existing burndown data:', deleteError);
+      return false;
+    }
+    
+    // Then insert new data
     const dbData = burndownData.map(item => ({
       project_id: projectId,
       user_id: userId,
@@ -395,14 +409,15 @@ export const upsertBurndownData = async (
       actual_points: item.actual
     }));
     
-    const { error } = await supabase
+    const { error: insertError } = await supabase
       .from('burndown_data')
-      .upsert(dbData, { 
-        onConflict: 'project_id,date',
-        ignoreDuplicates: false 
-      });
+      .insert(dbData);
       
-    if (error) throw error;
+    if (insertError) {
+      console.error('Error inserting burndown data:', insertError);
+      return false;
+    }
+    
     return true;
   } catch (error) {
     console.error('Error upserting burndown data:', error);

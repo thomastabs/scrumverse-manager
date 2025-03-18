@@ -13,9 +13,9 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { format, parseISO, startOfDay, addDays, min, max, differenceInDays, isBefore, isAfter } from "date-fns";
+import { format, parseISO, startOfDay, addDays, isBefore, isAfter, differenceInDays } from "date-fns";
 import { toast } from "sonner";
-import { Task } from "@/types";
+import { BurndownData, Task } from "@/types";
 import {
   ChartContainer,
   ChartTooltip,
@@ -35,6 +35,7 @@ const BurndownChart: React.FC = () => {
   const { user } = useAuth();
   const [chartData, setChartData] = useState<BurndownDataPoint[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   const project = getProject(projectId || "");
   
@@ -43,28 +44,22 @@ const BurndownChart: React.FC = () => {
       if (!projectId || !user) return;
       
       setIsLoading(true);
+      setError(null);
       try {
-        // Fetch burndown data from Supabase
-        const { data, error } = await supabase
-          .from('burndown_data')
-          .select('*')
-          .eq('project_id', projectId)
-          .eq('user_id', user.id)
-          .order('date', { ascending: true });
-          
-        if (error) throw error;
-        
-        let burndownData: BurndownDataPoint[] = [];
-        
-        // Always regenerate burndown data to keep it current with task status
-        burndownData = await generateBurndownData();
-        
-        // Save generated data to database
-        await upsertBurndownData(burndownData);
-        
+        // Always generate burndown data to keep it current with task status
+        const burndownData = await generateBurndownData();
         setChartData(burndownData);
+        
+        try {
+          // Try to save to database but don't block the UI on this
+          await saveBurndownData(burndownData);
+        } catch (saveError) {
+          console.error("Error saving burndown data (non-blocking):", saveError);
+          // Don't set error state here as we've already loaded the chart data
+        }
       } catch (error) {
-        console.error("Error fetching burndown data:", error);
+        console.error("Error generating burndown data:", error);
+        setError("Failed to load burndown chart data");
         toast.error("Failed to load burndown chart data");
       } finally {
         setIsLoading(false);
@@ -74,29 +69,34 @@ const BurndownChart: React.FC = () => {
     fetchBurndownData();
   }, [projectId, user, tasks, sprints]);
   
-  const upsertBurndownData = async (data: BurndownDataPoint[]) => {
+  const saveBurndownData = async (data: BurndownDataPoint[]) => {
     if (!projectId || !user) return;
     
     try {
-      // Convert app format to database format
-      const dbData = data.map(item => ({
-        project_id: projectId,
-        user_id: user.id,
-        date: item.date,
-        ideal_points: item.ideal,
-        actual_points: item.actual
-      }));
-      
+      // First, try to clear existing data to avoid conflicts
+      await supabase
+        .from('burndown_data')
+        .delete()
+        .eq('project_id', projectId)
+        .eq('user_id', user.id);
+        
+      // Then insert new data
       const { error } = await supabase
         .from('burndown_data')
-        .upsert(dbData, { 
-          onConflict: 'project_id,user_id,date',
-          ignoreDuplicates: false 
-        });
+        .insert(
+          data.map(item => ({
+            project_id: projectId,
+            user_id: user.id,
+            date: item.date,
+            ideal_points: item.ideal,
+            actual_points: item.actual
+          }))
+        );
         
       if (error) throw error;
     } catch (error) {
-      console.error("Error upserting burndown data:", error);
+      console.error("Error saving burndown data:", error);
+      throw error;
     }
   };
   
@@ -222,8 +222,20 @@ const BurndownChart: React.FC = () => {
   
   if (isLoading) {
     return (
-      <div className="text-center py-12">
-        <p>Loading burndown chart data...</p>
+      <div className="flex items-center justify-center py-24">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-scrum-accent border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-scrum-text-secondary">Loading burndown chart data...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <div className="scrum-card p-6 text-center">
+        <p className="text-red-500 mb-2">Error loading burndown data</p>
+        <p className="text-scrum-text-secondary">Please try refreshing the page</p>
       </div>
     );
   }

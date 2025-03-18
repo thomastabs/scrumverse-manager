@@ -1,20 +1,76 @@
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useProjects } from "@/context/ProjectContext";
 import { format, parseISO, differenceInDays, addDays } from "date-fns";
 import { Calendar, CheckCircle, Circle, Clock, Users, ListTodo } from "lucide-react";
+import { fetchCollaborativeProjectSprints, fetchCollaborativeSprintTasks } from "@/lib/supabase";
 
 const ProjectTimeline: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const { getProject, getSprintsByProject, getTasksBySprint } = useProjects();
+  const [sprints, setSprints] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<Record<string, any[]>>({});
   
   const project = getProject(projectId || "");
-  const sprints = getSprintsByProject(projectId || "");
+  
+  useEffect(() => {
+    const fetchSprints = async () => {
+      if (!projectId) return;
+      
+      // Use the local sprints from context for owned projects
+      const localSprints = getSprintsByProject(projectId || "");
+      
+      if (project?.isCollaboration) {
+        try {
+          // For collaborative projects, fetch sprints directly from the database
+          const fetchedSprints = await fetchCollaborativeProjectSprints(projectId);
+          if (fetchedSprints && fetchedSprints.length > 0) {
+            setSprints(fetchedSprints);
+          } else {
+            setSprints(localSprints);
+          }
+        } catch (error) {
+          console.error("Error fetching collaborative sprints:", error);
+          setSprints(localSprints);
+        }
+      } else {
+        setSprints(localSprints);
+      }
+    };
+    
+    fetchSprints();
+  }, [projectId, project, getSprintsByProject]);
+  
+  useEffect(() => {
+    const fetchTasks = async () => {
+      if (!sprints.length) return;
+      
+      const taskMap: Record<string, any[]> = {};
+      
+      for (const sprint of sprints) {
+        if (project?.isCollaboration) {
+          try {
+            const fetchedTasks = await fetchCollaborativeSprintTasks(sprint.id);
+            taskMap[sprint.id] = fetchedTasks || [];
+          } catch (error) {
+            console.error(`Error fetching tasks for sprint ${sprint.id}:`, error);
+            taskMap[sprint.id] = [];
+          }
+        } else {
+          taskMap[sprint.id] = getTasksBySprint(sprint.id);
+        }
+      }
+      
+      setTasks(taskMap);
+    };
+    
+    fetchTasks();
+  }, [sprints, project, getTasksBySprint]);
   
   // Sort sprints by start date
   const sortedSprints = [...sprints].sort((a, b) => 
-    new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
+    new Date(a.startDate || a.start_date).getTime() - new Date(b.startDate || b.start_date).getTime()
   );
   
   if (!project) {
@@ -45,12 +101,24 @@ const ProjectTimeline: React.FC = () => {
 
   // Get task count for a sprint
   const getSprintTaskCount = (sprintId: string) => {
-    return getTasksBySprint(sprintId).length;
+    return tasks[sprintId]?.length || 0;
   };
   
   // Get completed task count for a sprint
   const getCompletedTaskCount = (sprintId: string) => {
-    return getTasksBySprint(sprintId).filter(task => task.status === "done").length;
+    return tasks[sprintId]?.filter(task => task.status === "done" || task.status === "completed").length || 0;
+  };
+  
+  // Normalize sprint data (handle different property names in local vs. database)
+  const normalizeSprint = (sprint: any) => {
+    return {
+      id: sprint.id,
+      title: sprint.title,
+      description: sprint.description,
+      status: sprint.status,
+      startDate: sprint.startDate || sprint.start_date,
+      endDate: sprint.endDate || sprint.end_date
+    };
   };
   
   return (
@@ -73,16 +141,18 @@ const ProjectTimeline: React.FC = () => {
                 </div>
                 
                 {sortedSprints.map((sprint, index) => {
+                  const normalizedSprint = normalizeSprint(sprint);
+                  
                   // Find the earliest and latest dates across all sprints
-                  const earliestDate = new Date(sortedSprints[0].startDate);
-                  const latestDate = new Date(sortedSprints[sortedSprints.length - 1].endDate);
+                  const earliestDate = new Date(normalizeSprint(sortedSprints[0]).startDate);
+                  const latestDate = new Date(normalizeSprint(sortedSprints[sortedSprints.length - 1]).endDate);
                   
                   // Calculate the total timeline duration
                   const totalDuration = differenceInDays(latestDate, earliestDate) + 1;
                   
                   // Calculate the position and width of the sprint bar
-                  const startDate = new Date(sprint.startDate);
-                  const endDate = new Date(sprint.endDate);
+                  const startDate = new Date(normalizedSprint.startDate);
+                  const endDate = new Date(normalizedSprint.endDate);
                   const offsetDays = differenceInDays(startDate, earliestDate);
                   const duration = differenceInDays(endDate, startDate) + 1;
                   
@@ -90,22 +160,22 @@ const ProjectTimeline: React.FC = () => {
                   const widthPercentage = (duration / totalDuration) * 100;
                   
                   return (
-                    <div key={sprint.id} className="flex items-center mb-6">
+                    <div key={normalizedSprint.id} className="flex items-center mb-6">
                       <div className="w-1/4 pr-4">
                         <div className="flex items-center gap-2 mb-1">
-                          {getStatusIcon(sprint.status)}
-                          <span className="font-medium">{sprint.title}</span>
+                          {getStatusIcon(normalizedSprint.status)}
+                          <span className="font-medium">{normalizedSprint.title}</span>
                         </div>
                         <div className="flex items-center text-xs text-purple-400 mb-1">
                           <Calendar className="h-3 w-3 mr-1" />
                           <span>
-                            {format(new Date(sprint.startDate), "MMM d")} - {format(new Date(sprint.endDate), "MMM d, yyyy")}
+                            {format(new Date(normalizedSprint.startDate), "MMM d")} - {format(new Date(normalizedSprint.endDate), "MMM d, yyyy")}
                           </span>
                         </div>
                         <div className="flex items-center text-xs text-purple-300">
                           <ListTodo className="h-3 w-3 mr-1" />
                           <span>
-                            {getCompletedTaskCount(sprint.id)}/{getSprintTaskCount(sprint.id)} tasks completed
+                            {getCompletedTaskCount(normalizedSprint.id)}/{getSprintTaskCount(normalizedSprint.id)} tasks completed
                           </span>
                         </div>
                       </div>
@@ -113,7 +183,7 @@ const ProjectTimeline: React.FC = () => {
                       <div className="w-3/4 relative h-10 bg-scrum-background rounded-md">
                         <div className="absolute inset-y-0 left-0 right-0 flex items-center">
                           <div 
-                            className={`absolute h-6 rounded-md ${getStatusColor(sprint.status)}`}
+                            className={`absolute h-6 rounded-md ${getStatusColor(normalizedSprint.status)}`}
                             style={{ 
                               left: `${offsetPercentage}%`, 
                               width: `${widthPercentage}%`,
@@ -131,31 +201,32 @@ const ProjectTimeline: React.FC = () => {
           
           <div className="grid md:grid-cols-2 gap-6">
             {sortedSprints.map((sprint) => {
-              const totalTasks = getSprintTaskCount(sprint.id);
-              const completedTasks = getCompletedTaskCount(sprint.id);
+              const normalizedSprint = normalizeSprint(sprint);
+              const totalTasks = getSprintTaskCount(normalizedSprint.id);
+              const completedTasks = getCompletedTaskCount(normalizedSprint.id);
               const progressPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
               
               return (
-                <div key={sprint.id} className="p-4 bg-scrum-card border border-scrum-border rounded-lg">
+                <div key={normalizedSprint.id} className="p-4 bg-scrum-card border border-scrum-border rounded-lg">
                   <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-medium">{sprint.title}</h4>
-                    <span className={`px-2 py-0.5 text-xs rounded-full text-white flex items-center gap-1 ${getStatusColor(sprint.status)}`}>
-                      {getStatusIcon(sprint.status)}
+                    <h4 className="font-medium">{normalizedSprint.title}</h4>
+                    <span className={`px-2 py-0.5 text-xs rounded-full text-white flex items-center gap-1 ${getStatusColor(normalizedSprint.status)}`}>
+                      {getStatusIcon(normalizedSprint.status)}
                       <span>
-                        {sprint.status === "in-progress" ? "In Progress" : 
-                          sprint.status.charAt(0).toUpperCase() + sprint.status.slice(1)}
+                        {normalizedSprint.status === "in-progress" ? "In Progress" : 
+                          normalizedSprint.status.charAt(0).toUpperCase() + normalizedSprint.status.slice(1)}
                       </span>
                     </span>
                   </div>
                   
                   <p className="text-sm text-scrum-text-secondary mb-3 line-clamp-2">
-                    {sprint.description}
+                    {normalizedSprint.description}
                   </p>
                   
                   <div className="flex items-center text-xs text-purple-400 mb-2">
                     <Calendar className="h-3 w-3 mr-1" />
                     <span>
-                      {format(new Date(sprint.startDate), "MMMM d, yyyy")} - {format(new Date(sprint.endDate), "MMMM d, yyyy")}
+                      {format(new Date(normalizedSprint.startDate), "MMMM d, yyyy")} - {format(new Date(normalizedSprint.endDate), "MMMM d, yyyy")}
                     </span>
                   </div>
                   

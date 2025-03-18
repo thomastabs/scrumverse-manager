@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -24,12 +23,14 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/context/AuthContext";
 
 const formSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters"),
   description: z.string().min(10, "Description must be at least 10 characters"),
   priority: z.enum(["low", "medium", "high"]),
-  storyPoints: z.coerce.number().min(1).max(100),
+  storyPoints: z.coerce.number().min(1, "At least 1 story point is required").max(100),
 });
 
 interface BacklogItemFormProps {
@@ -40,6 +41,7 @@ interface BacklogItemFormProps {
 
 const BacklogItemForm: React.FC<BacklogItemFormProps> = ({ taskId, onClose, projectId }) => {
   const { getTask, addTask, updateTask } = useProjects();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const isEditMode = !!taskId;
   
@@ -72,6 +74,11 @@ const BacklogItemForm: React.FC<BacklogItemFormProps> = ({ taskId, onClose, proj
     setLoading(true);
     
     try {
+      if (!user) {
+        toast.error("You must be logged in to create a backlog item");
+        return;
+      }
+      
       if (isEditMode && taskId) {
         // Update existing task
         await updateTask(taskId, {
@@ -90,16 +97,40 @@ const BacklogItemForm: React.FC<BacklogItemFormProps> = ({ taskId, onClose, proj
         
         console.log('Creating new backlog item with project ID:', projectId); // Add logging to help debug
         
-        await addTask({
-          title: data.title,
-          description: data.description,
-          status: "backlog", // Use status instead of sprintId for backlog items
-          projectId: projectId, // Set projectId for the task
-          priority: data.priority, // Making sure priority is passed correctly
-          storyPoints: data.storyPoints,
-          sprintId: "", // Add the missing sprintId property with an empty string for backlog items
-        });
-        toast.success("Backlog item created successfully");
+        // Direct Supabase insert as a fallback method
+        if (user) {
+          const { data: insertData, error } = await supabase
+            .from('tasks')
+            .insert([{
+              title: data.title,
+              description: data.description,
+              status: "backlog",
+              sprint_id: null,
+              project_id: projectId,
+              priority: data.priority,
+              story_points: data.storyPoints,
+              user_id: user.id
+            }]);
+            
+          if (error) {
+            console.error("Supabase error:", error);
+            throw error;
+          } else {
+            toast.success("Backlog item created successfully");
+          }
+        } else {
+          // Try using the context method as originally intended
+          await addTask({
+            title: data.title,
+            description: data.description,
+            status: "backlog",
+            projectId: projectId,
+            priority: data.priority,
+            storyPoints: data.storyPoints,
+            sprintId: "",
+          });
+          toast.success("Backlog item created successfully");
+        }
       }
       
       onClose();
@@ -130,7 +161,7 @@ const BacklogItemForm: React.FC<BacklogItemFormProps> = ({ taskId, onClose, proj
               name="title"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Title</FormLabel>
+                  <FormLabel>Title <span className="text-destructive">*</span></FormLabel>
                   <FormControl>
                     <Input placeholder="Enter item title" {...field} />
                   </FormControl>
@@ -144,7 +175,7 @@ const BacklogItemForm: React.FC<BacklogItemFormProps> = ({ taskId, onClose, proj
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description</FormLabel>
+                  <FormLabel>Description <span className="text-destructive">*</span></FormLabel>
                   <FormControl>
                     <Textarea
                       placeholder="Enter item description"
@@ -163,7 +194,7 @@ const BacklogItemForm: React.FC<BacklogItemFormProps> = ({ taskId, onClose, proj
                 name="priority"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Priority</FormLabel>
+                    <FormLabel>Priority <span className="text-destructive">*</span></FormLabel>
                     <Select
                       onValueChange={field.onChange}
                       defaultValue={field.value}
@@ -189,7 +220,7 @@ const BacklogItemForm: React.FC<BacklogItemFormProps> = ({ taskId, onClose, proj
                 name="storyPoints"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Story Points</FormLabel>
+                    <FormLabel>Story Points <span className="text-destructive">*</span></FormLabel>
                     <FormControl>
                       <Input
                         type="number"

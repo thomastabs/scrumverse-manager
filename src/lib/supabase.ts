@@ -1,44 +1,84 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { Collaborator } from '@/types';
+import { Collaborator, BurndownData as BurndownDataType } from '@/types';
 
 const supabaseUrl = 'https://wslflobdapmebkjnaqld.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzbGZsb2JkYXBtZWJram5hcWxkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE0NDc2ODQsImV4cCI6MjA1NzAyMzY4NH0.lNk_nX9S7KMjSYnR1JpFns7biqXvq0Ln2Z6pAYGi9aQ';
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+// Configure client with retry and timeout options
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: true
+  },
+  global: {
+    headers: {
+      'Cache-Control': 'no-cache',
+    },
+    fetch: (url, options) => {
+      const controller = new AbortController();
+      const { signal } = controller;
+      
+      // Set a timeout to abort long-running requests
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      return fetch(url, { 
+        ...options, 
+        signal,
+        // Ensure we get fresh data
+        cache: 'no-cache'
+      }).finally(() => clearTimeout(timeoutId));
+    }
+  }
+});
 
 // Helper function to get authenticated client
 export const getAuthenticatedClient = () => {
-  const user = JSON.parse(localStorage.getItem("scrumUser") || "{}");
-  // For our demo app, we manually set auth header with user ID
-  // In a real app with Supabase Auth, this would use built-in auth tokens
-  if (user && user.id) {
-    return createClient(supabaseUrl, supabaseKey, {
-      global: {
-        headers: {
-          // Set the JWT claims with the user_id for RLS policies
-          Authorization: `Bearer ${JSON.stringify({
-            user_id: user.id
-          })}`,
-        },
-      },
-    });
-  }
   return supabase;
+};
+
+// Add a retry wrapper for Supabase requests
+export const withRetry = async <T>(
+  operation: () => Promise<T>,
+  retries = 3,
+  delay = 1000,
+  backoffFactor = 2
+): Promise<T> => {
+  let lastError: any;
+  
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      console.log(`Attempt ${attempt + 1} failed:`, error);
+      lastError = error;
+      
+      // Only retry on network errors
+      if (!(error instanceof Error) || !(error.message?.includes('Failed to fetch') || error.message?.includes('Network error'))) {
+        throw error;
+      }
+      
+      // Wait with exponential backoff before retrying
+      const waitTime = delay * Math.pow(backoffFactor, attempt);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+  }
+  
+  throw lastError;
 };
 
 // Helper function to fetch columns for a sprint
 export const fetchSprintColumns = async (sprintId: string, userId: string) => {
   try {
-    const { data, error } = await supabase
-      .from('board_columns')
-      .select('*')
-      .eq('sprint_id', sprintId)
-      .eq('user_id', userId)
-      .order('order_index', { ascending: true });
-      
-    if (error) throw error;
-    return data || [];
+    return await withRetry(async () => {
+      const { data, error } = await supabase
+        .from('board_columns')
+        .select('*')
+        .eq('sprint_id', sprintId)
+        .order('order_index', { ascending: true });
+        
+      if (error) throw error;
+      return data || [];
+    });
   } catch (error) {
     console.error('Error fetching sprint columns:', error);
     return [];
@@ -107,8 +147,7 @@ export const findUserByEmailOrUsername = async (emailOrUsername: string) => {
 // Helper function to add a collaborator to a project
 export const addCollaborator = async (projectId: string, userId: string, role: 'viewer' | 'member' | 'admin') => {
   try {
-    const authClient = getAuthenticatedClient();
-    const { data, error } = await authClient
+    const { data, error } = await supabase
       .from('collaborators')
       .insert({
         project_id: projectId,
@@ -129,8 +168,7 @@ export const addCollaborator = async (projectId: string, userId: string, role: '
 // Helper function to fetch collaborators for a project
 export const fetchProjectCollaborators = async (projectId: string) => {
   try {
-    const authClient = getAuthenticatedClient();
-    const { data, error } = await authClient
+    const { data, error } = await supabase
       .from('collaborators')
       .select(`
         id,
@@ -163,8 +201,7 @@ export const fetchProjectCollaborators = async (projectId: string) => {
 // Helper function to remove a collaborator from a project
 export const removeCollaborator = async (collaboratorId: string) => {
   try {
-    const authClient = getAuthenticatedClient();
-    const { error } = await authClient
+    const { error } = await supabase
       .from('collaborators')
       .delete()
       .eq('id', collaboratorId);
@@ -180,8 +217,7 @@ export const removeCollaborator = async (collaboratorId: string) => {
 // Helper function to update a collaborator's role
 export const updateCollaboratorRole = async (collaboratorId: string, role: 'viewer' | 'member' | 'admin') => {
   try {
-    const authClient = getAuthenticatedClient();
-    const { error } = await authClient
+    const { error } = await supabase
       .from('collaborators')
       .update({ role })
       .eq('id', collaboratorId);
@@ -234,5 +270,142 @@ export const fetchCollaborativeProjects = async (userId: string) => {
   } catch (error) {
     console.error('Error fetching collaborative projects:', error);
     return [];
+  }
+};
+
+// New helper to check if a user is a collaborator on a project
+export const checkProjectCollaborator = async (projectId: string, userId: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('collaborators')
+      .select('role')
+      .eq('project_id', projectId)
+      .eq('user_id', userId)
+      .single();
+      
+    if (error) {
+      if (error.code === 'PGRST116') { // No rows found error code
+        return null;
+      }
+      throw error;
+    }
+    
+    return data?.role || null;
+  } catch (error) {
+    console.error('Error checking collaborator status:', error);
+    return null;
+  }
+};
+
+// New helper to fetch sprints for a project as a collaborator
+export const fetchCollaborativeProjectSprints = async (projectId: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('sprints')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false });
+      
+    if (error) throw error;
+    
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching collaborative project sprints:', error);
+    return [];
+  }
+};
+
+// New helper to fetch tasks for a sprint as a collaborator
+export const fetchCollaborativeSprintTasks = async (sprintId: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('sprint_id', sprintId);
+      
+    if (error) throw error;
+    
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching collaborative sprint tasks:', error);
+    return [];
+  }
+};
+
+// New helper to fetch backlog tasks for a project as a collaborator
+export const fetchCollaborativeBacklogTasks = async (projectId: string) => {
+  try {
+    console.log('Fetching collaborative backlog tasks for project:', projectId);
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('project_id', projectId)
+      .is('sprint_id', null)
+      .eq('status', 'backlog');
+      
+    if (error) {
+      console.error('Error fetching backlog tasks:', error);
+      throw error;
+    }
+    
+    console.log('Backlog tasks fetched:', data);
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching collaborative backlog tasks:', error);
+    return [];
+  }
+};
+
+// New helper to fetch burndown data for a project
+export const fetchBurndownData = async (projectId: string, userId: string): Promise<BurndownDataType[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('burndown_data')
+      .select('date, ideal_points, actual_points')
+      .eq('project_id', projectId)
+      .order('date', { ascending: true });
+      
+    if (error) throw error;
+    
+    // Map the database format to our app format
+    return (data || []).map(item => ({
+      date: item.date,
+      ideal: item.ideal_points,
+      actual: item.actual_points
+    }));
+  } catch (error) {
+    console.error('Error fetching burndown data:', error);
+    return [];
+  }
+};
+
+// New helper to upsert burndown data for a project
+export const upsertBurndownData = async (
+  projectId: string, 
+  userId: string,
+  burndownData: BurndownDataType[]
+): Promise<boolean> => {
+  try {
+    // Convert our app format to database format
+    const dbData = burndownData.map(item => ({
+      project_id: projectId,
+      user_id: userId,
+      date: item.date,
+      ideal_points: item.ideal,
+      actual_points: item.actual
+    }));
+    
+    const { error } = await supabase
+      .from('burndown_data')
+      .upsert(dbData, { 
+        onConflict: 'project_id,date',
+        ignoreDuplicates: false 
+      });
+      
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Error upserting burndown data:', error);
+    return false;
   }
 };

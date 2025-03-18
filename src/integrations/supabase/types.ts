@@ -271,6 +271,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "tasks_column_id_fkey"
+            columns: ["column_id"]
+            isOneToOne: false
+            referencedRelation: "board_columns"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "tasks_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
@@ -322,6 +329,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_user_id_from_email: {
+        Args: {
+          user_email: string
+        }
+        Returns: string
+      }
       user_has_project_access: {
         Args: {
           project_id: string

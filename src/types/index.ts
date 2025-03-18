@@ -39,6 +39,9 @@ export interface Task {
   createdAt: string;
   updatedAt: string;
   projectId?: string;
+  // Add these new properties to handle database field name differences
+  story_points?: number;
+  assign_to?: string;
 }
 
 export interface BurndownData {

@@ -8,12 +8,16 @@ interface SprintCardProps {
   sprint: Sprint;
   onEdit?: () => void;
   onViewBoard?: () => void;
+  isOwnerOrAdmin?: boolean;
+  canEdit?: boolean;
 }
 
 const SprintCard: React.FC<SprintCardProps> = ({ 
   sprint, 
   onEdit = () => {}, 
-  onViewBoard = () => {}
+  onViewBoard = () => {},
+  isOwnerOrAdmin = false,
+  canEdit = false 
 }) => {
   const getStatusColor = () => {
     switch (sprint.status) {
@@ -47,17 +51,19 @@ const SprintCard: React.FC<SprintCardProps> = ({
       </div>
       
       <div className="flex items-center justify-between gap-2 mt-4">
-        <button
-          onClick={onEdit}
-          className="scrum-button-secondary flex items-center gap-1"
-        >
-          <Edit className="h-4 w-4" />
-          <span>Edit</span>
-        </button>
+        {canEdit && (
+          <button
+            onClick={onEdit}
+            className="scrum-button-secondary flex items-center gap-1"
+          >
+            <Edit className="h-4 w-4" />
+            <span>Edit</span>
+          </button>
+        )}
         
         <button
           onClick={onViewBoard}
-          className="scrum-button"
+          className={`scrum-button ${!canEdit ? 'w-full' : ''}`}
         >
           View Board
         </button>

@@ -1,8 +1,10 @@
 
 import React, { useState } from "react";
 import { useProjects } from "@/context/ProjectContext";
+import { useAuth } from "@/context/AuthContext";
 import { Plus, X } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 interface NewSprintButtonProps {
   projectId: string;
@@ -15,9 +17,16 @@ const NewSprintButton: React.FC<NewSprintButtonProps> = ({ projectId }) => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const { addSprint } = useProjects();
+  const { user } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!user) {
+      toast.error("You must be logged in to create a sprint");
+      return;
+    }
     
     if (!title.trim()) {
       toast.error("Sprint title is required");
@@ -35,14 +44,37 @@ const NewSprintButton: React.FC<NewSprintButtonProps> = ({ projectId }) => {
     }
     
     try {
-      await addSprint({
+      setIsSubmitting(true);
+      
+      console.log("Creating sprint with data:", {
         title,
         description,
-        projectId,
-        startDate,
-        endDate,
-        status: "in-progress", // Always set to in-progress
+        project_id: projectId,
+        user_id: user.id,
+        start_date: startDate,
+        end_date: endDate,
+        status: "in-progress"
       });
+      
+      // Direct Supabase insert with clearer error handling
+      const { data, error } = await supabase
+        .from('sprints')
+        .insert({
+          title,
+          description,
+          project_id: projectId,
+          user_id: user.id,
+          start_date: startDate,
+          end_date: endDate,
+          status: "in-progress" // Always set to in-progress
+        })
+        .select();
+      
+      if (error) {
+        console.error("Sprint creation error:", error);
+        toast.error(`Failed to create sprint: ${error.message}`);
+        return;
+      }
       
       toast.success("Sprint created successfully");
       setIsModalOpen(false);
@@ -50,9 +82,14 @@ const NewSprintButton: React.FC<NewSprintButtonProps> = ({ projectId }) => {
       setDescription("");
       setStartDate("");
       setEndDate("");
-    } catch (error) {
-      toast.error("Failed to create sprint");
-      console.error(error);
+      
+      // Refresh the UI
+      window.location.reload();
+    } catch (error: any) {
+      console.error("Sprint creation error:", error);
+      toast.error(`Failed to create sprint: ${error.message || "Unknown error"}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -146,8 +183,9 @@ const NewSprintButton: React.FC<NewSprintButtonProps> = ({ projectId }) => {
                 <button
                   type="submit"
                   className="scrum-button"
+                  disabled={isSubmitting}
                 >
-                  Create Sprint
+                  {isSubmitting ? "Creating..." : "Create Sprint"}
                 </button>
               </div>
             </form>

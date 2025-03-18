@@ -1,17 +1,38 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useProjects } from "@/context/ProjectContext";
 import Navbar from "@/components/layout/Navbar";
 import ProjectCard from "@/components/projects/ProjectCard";
 import NewProjectButton from "@/components/projects/NewProjectButton";
-import NavLink from "@/components/ui/NavLink";
 import { Folder, Users, LayoutDashboard } from "lucide-react";
+import { useLocation } from "react-router-dom";
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
-  const { projects } = useProjects();
+  const { projects, fetchCollaborativeProjects } = useProjects();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState<"overview" | "projects" | "collaborations">("overview");
+  
+  // Set activeTab based on location state when navigating back from projects
+  useEffect(() => {
+    if (location.state && location.state.activeTab) {
+      setActiveTab(location.state.activeTab);
+    }
+  }, [location.state]);
+
+  // Fetch projects on component mount to ensure we have the latest data
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        await fetchCollaborativeProjects();
+      } catch (error) {
+        console.error("Error fetching projects:", error);
+      }
+    };
+    
+    loadProjects();
+  }, [fetchCollaborativeProjects]);
 
   // Get the 3 most recent projects (for overview tab)
   const recentProjects = [...projects]
@@ -54,6 +75,11 @@ const Dashboard: React.FC = () => {
     } else if (activeTab === "projects") {
       return (
         <div>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-bold">My Projects</h2>
+            <NewProjectButton />
+          </div>
+          
           {ownedProjects.length === 0 ? (
             <div className="text-center py-12 bg-scrum-card border border-scrum-border rounded-lg">
               <p className="text-scrum-text-secondary mb-4">You don't have any projects yet</p>
@@ -71,6 +97,8 @@ const Dashboard: React.FC = () => {
     } else if (activeTab === "collaborations") {
       return (
         <div>
+          <h2 className="text-xl font-bold mb-6">My Collaborations</h2>
+          
           {collaborativeProjects.length === 0 ? (
             <div className="text-center py-12 bg-scrum-card border border-scrum-border rounded-lg">
               <p className="text-scrum-text-secondary mb-4">You don't have any collaborative projects yet</p>

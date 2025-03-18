@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useProjects } from "@/context/ProjectContext";
+import { useAuth } from "@/context/AuthContext";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
-import { Plus, Send, Package, ArrowRight, Trash, Search, Filter } from "lucide-react";
+import { Plus, Send, Package, ArrowRight, Trash, Search, Filter, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import TaskCard from "@/components/tasks/TaskCard";
 import EditTaskModal from "@/components/tasks/EditTaskModal";
@@ -34,39 +35,95 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import BacklogItemForm from "./BacklogItemForm";
+import { supabase, withRetry } from "@/lib/supabase";
 
 const ProductBacklog: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
-  const { 
-    getProject, 
-    getSprintsByProject, 
-    getBacklogTasks, 
-    addTask, 
-    updateTask,
-    deleteTask
-  } = useProjects();
+  const { getProject, getSprintsByProject, refreshProjectData } = useProjects();
+  const { user, isOwner, userRole } = useAuth();
   const navigate = useNavigate();
   
   const [backlogTasks, setBacklogTasks] = useState<any[]>([]);
   const [editingTask, setEditingTask] = useState<string | null>(null);
   const [isAddingTask, setIsAddingTask] = useState(false);
-  const [movingTask, setMovingTask] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   const project = projectId ? getProject(projectId) : undefined;
   const sprints = projectId ? getSprintsByProject(projectId) : [];
   const availableSprints = sprints.filter(sprint => sprint.status !== "completed");
   
-  // Fetch all backlog tasks
+  const canAddTasks = isOwner || userRole === 'admin';
+
   useEffect(() => {
+    if (!projectId || !user) {
+      setIsLoading(false);
+      return;
+    }
+    
+    const fetchBacklogItems = async () => {
+      try {
+        setIsLoading(true);
+        console.log('Fetching backlog tasks for project ID:', projectId);
+        
+        const { data, error } = await withRetry(async () => {
+          return await supabase
+            .from('tasks')
+            .select('*')
+            .eq('project_id', projectId)
+            .is('sprint_id', null)
+            .eq('status', 'backlog');
+        });
+        
+        if (error) {
+          console.error('Error fetching backlog tasks:', error);
+          throw error;
+        }
+        
+        console.log('Retrieved backlog tasks:', data);
+        setBacklogTasks(data || []);
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error fetching backlog tasks:', error);
+        setBacklogTasks([]);
+        setIsLoading(false);
+        toast.error("Failed to load backlog items. Please try refreshing.");
+      }
+    };
+    
+    fetchBacklogItems();
+  }, [projectId, user]);
+  
+  const handleRefresh = async () => {
     if (!projectId) return;
     
-    console.log('Fetching backlog tasks for project ID:', projectId); // Add logging to help debug
-    const tasks = getBacklogTasks(projectId);
-    console.log('Retrieved backlog tasks:', tasks); // Add logging to help debug
-    setBacklogTasks(tasks);
-  }, [projectId, getBacklogTasks]);
+    setIsRefreshing(true);
+    try {
+      await refreshProjectData(projectId);
+      
+      // Refetch the backlog tasks specifically
+      const { data, error } = await withRetry(async () => {
+        return await supabase
+          .from('tasks')
+          .select('*')
+          .eq('project_id', projectId)
+          .is('sprint_id', null)
+          .eq('status', 'backlog');
+      });
+      
+      if (error) throw error;
+      
+      setBacklogTasks(data || []);
+      toast.success("Backlog refreshed successfully");
+    } catch (error) {
+      console.error("Error refreshing backlog:", error);
+      toast.error("Failed to refresh backlog");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
   
   const handleDragEnd = async (result: any) => {
     const { destination, source, draggableId } = result;
@@ -81,14 +138,33 @@ const ProductBacklog: React.FC = () => {
     }
     
     try {
-      // Update the task status
-      await updateTask(draggableId, {
-        status: destination.droppableId === "backlog" ? "backlog" : destination.droppableId
-      });
+      const { error } = await supabase
+        .from('tasks')
+        .update({
+          status: destination.droppableId === "backlog" ? "backlog" : destination.droppableId
+        })
+        .eq('id', draggableId);
       
-      // Refresh backlog tasks
-      const tasks = getBacklogTasks(projectId);
-      setBacklogTasks(tasks);
+      if (error) {
+        console.error("Error updating task status:", error);
+        throw error;
+      }
+      
+      if (projectId && user) {
+        const { data, error } = await supabase
+          .from('tasks')
+          .select('*')
+          .eq('project_id', projectId)
+          .is('sprint_id', null)
+          .eq('status', 'backlog');
+        
+        if (error) {
+          console.error('Error refreshing backlog tasks:', error);
+          throw error;
+        }
+        
+        setBacklogTasks(data || []);
+      }
       
     } catch (error) {
       console.error("Error updating task status:", error);
@@ -97,21 +173,38 @@ const ProductBacklog: React.FC = () => {
   };
   
   const handleMoveToSprint = async (taskId: string, sprintId: string) => {
-    if (!taskId || !sprintId) return;
+    if (!taskId || !sprintId || !user) return;
     
     try {
-      await updateTask(taskId, {
-        sprintId,
-        status: "todo"  // Default to todo when moving to a sprint
-      });
+      const { error } = await supabase
+        .from('tasks')
+        .update({
+          sprint_id: sprintId,
+          status: "todo"
+        })
+        .eq('id', taskId);
+      
+      if (error) {
+        console.error("Error moving task to sprint:", error);
+        throw error;
+      }
       
       toast.success("Task moved to sprint");
-      setMovingTask(null);
       
-      // Refresh backlog tasks
       if (projectId) {
-        const tasks = getBacklogTasks(projectId);
-        setBacklogTasks(tasks);
+        const { data, error } = await supabase
+          .from('tasks')
+          .select('*')
+          .eq('project_id', projectId)
+          .is('sprint_id', null)
+          .eq('status', 'backlog');
+        
+        if (error) {
+          console.error('Error refreshing backlog tasks after move:', error);
+          throw error;
+        }
+        
+        setBacklogTasks(data || []);
       }
     } catch (error) {
       console.error("Error moving task to sprint:", error);
@@ -120,14 +213,35 @@ const ProductBacklog: React.FC = () => {
   };
 
   const handleDeleteTask = async (taskId: string) => {
+    if (!user) return;
+    
     try {
-      await deleteTask(taskId);
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', taskId);
+      
+      if (error) {
+        console.error("Error deleting task:", error);
+        throw error;
+      }
+      
       toast.success("Backlog item deleted successfully");
       
-      // Refresh backlog tasks
       if (projectId) {
-        const tasks = getBacklogTasks(projectId);
-        setBacklogTasks(tasks);
+        const { data, error } = await supabase
+          .from('tasks')
+          .select('*')
+          .eq('project_id', projectId)
+          .is('sprint_id', null)
+          .eq('status', 'backlog');
+        
+        if (error) {
+          console.error('Error refreshing backlog tasks after delete:', error);
+          throw error;
+        }
+        
+        setBacklogTasks(data || []);
       }
     } catch (error) {
       console.error("Error deleting task:", error);
@@ -135,7 +249,6 @@ const ProductBacklog: React.FC = () => {
     }
   };
 
-  // Filter backlog tasks by search query and priority
   const filteredBacklogTasks = backlogTasks
     .filter(task => 
       task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -172,23 +285,45 @@ const ProductBacklog: React.FC = () => {
     );
   }
   
+  if (isLoading) {
+    return (
+      <div className="text-center py-12">
+        <div className="animate-pulse">Loading backlog items...</div>
+      </div>
+    );
+  }
+  
   return (
     <div className="container mx-auto pb-20">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold">Product Backlog</h2>
           <p className="text-scrum-text-secondary">
-            Manage your project's backlog items and move them to sprints
+            Manage your project's backlog items
           </p>
         </div>
         
-        <Button
-          onClick={() => setIsAddingTask(true)}
-          className="flex items-center gap-1"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Add Backlog Item</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={handleRefresh}
+            variant="outline"
+            size="icon"
+            disabled={isRefreshing}
+            title="Refresh backlog"
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </Button>
+          
+          {canAddTasks && (
+            <Button
+              onClick={() => setIsAddingTask(true)}
+              className="flex items-center gap-1"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Add Backlog Item</span>
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 mb-6">
@@ -262,7 +397,7 @@ const ProductBacklog: React.FC = () => {
                               </CardHeader>
                               <CardContent className="p-4 pt-2">
                                 <p className="text-sm text-muted-foreground mb-2">{task.description || ""}</p>
-                                <Badge variant="secondary">SP: {task.storyPoints || 0}</Badge>
+                                <Badge variant="secondary">SP: {task.story_points || 0}</Badge>
                               </CardContent>
                               <CardFooter className="p-4 pt-0 flex justify-between">
                                 <div className="flex gap-1">
@@ -355,19 +490,51 @@ const ProductBacklog: React.FC = () => {
         </div>
       </DragDropContext>
       
-      {/* Edit Task Modal */}
       {editingTask && (
         <BacklogItemForm
           taskId={editingTask}
-          onClose={() => setEditingTask(null)}
+          onClose={() => {
+            setEditingTask(null);
+            if (projectId && user) {
+              supabase
+                .from('tasks')
+                .select('*')
+                .eq('project_id', projectId)
+                .is('sprint_id', null)
+                .eq('status', 'backlog')
+                .then(({ data, error }) => {
+                  if (error) {
+                    console.error('Error refreshing backlog tasks:', error);
+                    return;
+                  }
+                  setBacklogTasks(data || []);
+                });
+            }
+          }}
           projectId={projectId}
         />
       )}
       
-      {/* Add New Task Modal */}
       {isAddingTask && (
         <BacklogItemForm 
-          onClose={() => setIsAddingTask(false)}
+          onClose={() => {
+            setIsAddingTask(false);
+            if (projectId && user) {
+              supabase
+                .from('tasks')
+                .select('*')
+                .eq('project_id', projectId)
+                .is('sprint_id', null)
+                .eq('status', 'backlog')
+                .then(({ data, error }) => {
+                  if (error) {
+                    console.error('Error refreshing backlog tasks:', error);
+                    return;
+                  }
+                  setBacklogTasks(data || []);
+                });
+            }
+          }}
           projectId={projectId}
         />
       )}

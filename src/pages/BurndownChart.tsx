@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { useProjects } from "@/context/ProjectContext";
 import { useAuth } from "@/context/AuthContext";
@@ -21,6 +22,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface BurndownDataPoint {
   date: string;
@@ -40,81 +42,8 @@ const BurndownChart: React.FC = () => {
   
   const project = getProject(projectId || "");
   
-  useEffect(() => {
-    const fetchBurndownData = async () => {
-      if (!projectId || !user) return;
-      
-      setIsLoading(true);
-      setError(null);
-      try {
-        // Always generate burndown data to keep it current with task status
-        const burndownData = await generateBurndownData();
-        setChartData(burndownData);
-        
-        // Save data in background, but don't block UI
-        saveBurndownDataSafely(burndownData);
-      } catch (error) {
-        console.error("Error generating burndown data:", error);
-        setError("Failed to load burndown chart data");
-        toast.error("Failed to load burndown chart data");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    fetchBurndownData();
-  }, [projectId, user, tasks, sprints]);
-  
-  // New function for safer data saving with debounce
-  const saveBurndownDataSafely = async (data: BurndownDataPoint[]) => {
-    if (isSaving || !projectId || !user) return;
-    
-    try {
-      setIsSaving(true);
-      
-      // First clear existing data
-      const { error: deleteError } = await supabase
-        .from('burndown_data')
-        .delete()
-        .eq('project_id', projectId);
-        
-      if (deleteError) {
-        console.log("Non-blocking delete error:", deleteError);
-        // Continue anyway
-      }
-      
-      // Wait a moment before inserting
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Insert data one by one with small delays to avoid overwhelming the DB
-      for (const item of data) {
-        const { error: insertError } = await supabase
-          .from('burndown_data')
-          .insert({
-            project_id: projectId,
-            user_id: user.id,
-            date: item.date,
-            ideal_points: item.ideal,
-            actual_points: item.actual
-          });
-          
-        if (insertError) {
-          console.log("Non-blocking insert error:", insertError);
-          // Don't break the loop, continue with other items
-        }
-        
-        // Small delay between inserts
-        await new Promise(resolve => setTimeout(resolve, 50));
-      }
-    } catch (error) {
-      console.log("Background save error (non-blocking):", error);
-      // Don't show errors to user for background operations
-    } finally {
-      setIsSaving(false);
-    }
-  };
-  
-  const generateBurndownData = async (): Promise<BurndownDataPoint[]> => {
+  // Memoized function to generate burndown data to prevent re-computations
+  const generateBurndownData = useCallback(async (): Promise<BurndownDataPoint[]> => {
     const data: BurndownDataPoint[] = [];
     const today = startOfDay(new Date());
     
@@ -211,7 +140,7 @@ const BurndownChart: React.FC = () => {
     }
     
     return data;
-  };
+  }, [projectId, getSprintsByProject, getTasksBySprint]);
   
   const generateDefaultTimeframe = (startDate: Date, days: number): BurndownDataPoint[] => {
     const data: BurndownDataPoint[] = [];
@@ -234,12 +163,121 @@ const BurndownChart: React.FC = () => {
     return data;
   };
   
+  // Throttled save function to prevent too many database operations
+  const saveBurndownDataSafely = useCallback(async (data: BurndownDataPoint[]) => {
+    if (isSaving || !projectId || !user) return;
+    
+    try {
+      setIsSaving(true);
+      
+      // Use a single, delayed operation to reduce flickering
+      // We don't need to delete existing data if we're properly using the unique constraint
+      
+      // Create the records to insert
+      const recordsToInsert = data.map(item => ({
+        project_id: projectId,
+        user_id: user.id,
+        date: item.date,
+        ideal_points: item.ideal,
+        actual_points: item.actual
+      }));
+      
+      // Use upsert instead of delete + insert to make it smoother
+      const { error } = await supabase
+        .from('burndown_data')
+        .upsert(recordsToInsert, { 
+          onConflict: 'project_id,user_id,date',
+          ignoreDuplicates: false
+        });
+      
+      if (error) {
+        console.log("Background save error:", error);
+      }
+    } catch (error) {
+      console.log("Background save error (non-blocking):", error);
+      // Don't show errors to user for background operations
+    } finally {
+      setIsSaving(false);
+    }
+  }, [projectId, user, isSaving]);
+  
+  // Main effect to fetch or generate burndown data
+  useEffect(() => {
+    const fetchBurndownData = async () => {
+      if (!projectId || !user) return;
+      
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        // Try to get cached burndown data first
+        let cachedData = null;
+        
+        // Only try to fetch from database if we're not already saving
+        if (!isSaving) {
+          const { data: dbData, error: fetchError } = await supabase
+            .from('burndown_data')
+            .select('date, ideal_points, actual_points')
+            .eq('project_id', projectId)
+            .eq('user_id', user.id)
+            .order('date', { ascending: true });
+            
+          if (!fetchError && dbData && dbData.length > 0) {
+            cachedData = dbData.map(item => ({
+              date: item.date,
+              ideal: item.ideal_points,
+              actual: item.actual_points,
+              formattedDate: format(parseISO(item.date), "MMM dd")
+            }));
+          }
+        }
+        
+        // If we have cached data, use it first, then update in the background
+        if (cachedData && cachedData.length > 0) {
+          setChartData(cachedData);
+          setIsLoading(false);
+          
+          // Background update
+          setTimeout(async () => {
+            const burndownData = await generateBurndownData();
+            setChartData(burndownData);
+            
+            // Only try to save if data changed
+            if (JSON.stringify(burndownData) !== JSON.stringify(cachedData)) {
+              saveBurndownDataSafely(burndownData);
+            }
+          }, 500);
+        } else {
+          // No cached data, generate and display it immediately
+          const burndownData = await generateBurndownData();
+          setChartData(burndownData);
+          
+          // Save after a slight delay to ensure UI is responsive first
+          setTimeout(() => {
+            saveBurndownDataSafely(burndownData);
+          }, 500);
+        }
+      } catch (error) {
+        console.error("Error generating burndown data:", error);
+        setError("Failed to load burndown chart data");
+        toast.error("Failed to load burndown chart data");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchBurndownData();
+  }, [projectId, user, tasks, sprints, generateBurndownData, saveBurndownDataSafely, isSaving]);
+  
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-24">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-scrum-accent border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-scrum-text-secondary">Loading burndown chart data...</p>
+      <div className="scrum-card p-6">
+        <div className="mb-4">
+          <Skeleton className="h-8 w-3/4 mb-2" />
+          <Skeleton className="h-4 w-1/2" />
+        </div>
+        <div className="h-[400px]">
+          <Skeleton className="h-full w-full rounded-md" />
         </div>
       </div>
     );

@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useProjects } from "@/context/ProjectContext";
 import { useAuth } from "@/context/AuthContext";
@@ -16,12 +16,6 @@ import {
 } from "recharts";
 import { format, parseISO, startOfDay, addDays, isBefore, isAfter, differenceInDays } from "date-fns";
 import { toast } from "sonner";
-import { BurndownData, Task } from "@/types";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface BurndownDataPoint {
@@ -37,13 +31,11 @@ const BurndownChart: React.FC = () => {
   const { user } = useAuth();
   const [chartData, setChartData] = useState<BurndownDataPoint[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   
   const project = getProject(projectId || "");
   
-  // Memoized function to generate burndown data to prevent re-computations
-  const generateBurndownData = useCallback(async (): Promise<BurndownDataPoint[]> => {
+  // Generate burndown data based on tasks and sprints
+  const generateBurndownData = (): BurndownDataPoint[] => {
     const data: BurndownDataPoint[] = [];
     const today = startOfDay(new Date());
     
@@ -51,7 +43,6 @@ const BurndownChart: React.FC = () => {
     const projectSprints = getSprintsByProject(projectId || "");
     
     if (projectSprints.length === 0) {
-      // If no sprints exist, use default 21-day range
       return generateDefaultTimeframe(today, 21);
     }
     
@@ -84,7 +75,7 @@ const BurndownChart: React.FC = () => {
     const timeframeDays = Math.max(daysInProject, 7);
     
     // Get all tasks across all sprints
-    const allTasks: Task[] = [];
+    const allTasks = [];
     for (const sprint of projectSprints) {
       const sprintTasks = getTasksBySprint(sprint.id);
       allTasks.push(...sprintTasks);
@@ -140,7 +131,7 @@ const BurndownChart: React.FC = () => {
     }
     
     return data;
-  }, [projectId, getSprintsByProject, getTasksBySprint]);
+  };
   
   const generateDefaultTimeframe = (startDate: Date, days: number): BurndownDataPoint[] => {
     const data: BurndownDataPoint[] = [];
@@ -163,111 +154,80 @@ const BurndownChart: React.FC = () => {
     return data;
   };
   
-  // Throttled save function to prevent too many database operations
-  const saveBurndownDataSafely = useCallback(async (data: BurndownDataPoint[]) => {
-    if (isSaving || !projectId || !user) return;
-    
-    try {
-      setIsSaving(true);
-      
-      // Use a single, delayed operation to reduce flickering
-      // We don't need to delete existing data if we're properly using the unique constraint
-      
-      // Create the records to insert
-      const recordsToInsert = data.map(item => ({
-        project_id: projectId,
-        user_id: user.id,
-        date: item.date,
-        ideal_points: item.ideal,
-        actual_points: item.actual
-      }));
-      
-      // Use upsert instead of delete + insert to make it smoother
-      const { error } = await supabase
-        .from('burndown_data')
-        .upsert(recordsToInsert, { 
-          onConflict: 'project_id,user_id,date',
-          ignoreDuplicates: false
-        });
-      
-      if (error) {
-        console.log("Background save error:", error);
-      }
-    } catch (error) {
-      console.log("Background save error (non-blocking):", error);
-      // Don't show errors to user for background operations
-    } finally {
-      setIsSaving(false);
-    }
-  }, [projectId, user, isSaving]);
-  
   // Main effect to fetch or generate burndown data
   useEffect(() => {
+    if (!projectId || !user) return;
+    
+    setIsLoading(true);
+    
+    // Try to get cached burndown data first
     const fetchBurndownData = async () => {
-      if (!projectId || !user) return;
-      
-      setIsLoading(true);
-      setError(null);
-      
       try {
-        // Try to get cached burndown data first
-        let cachedData = null;
-        
-        // Only try to fetch from database if we're not already saving
-        if (!isSaving) {
-          const { data: dbData, error: fetchError } = await supabase
-            .from('burndown_data')
-            .select('date, ideal_points, actual_points')
-            .eq('project_id', projectId)
-            .eq('user_id', user.id)
-            .order('date', { ascending: true });
-            
-          if (!fetchError && dbData && dbData.length > 0) {
-            cachedData = dbData.map(item => ({
-              date: item.date,
-              ideal: item.ideal_points,
-              actual: item.actual_points,
-              formattedDate: format(parseISO(item.date), "MMM dd")
-            }));
+        const { data, error } = await supabase
+          .from('burndown_data')
+          .select('date, ideal_points, actual_points')
+          .eq('project_id', projectId)
+          .eq('user_id', user.id)
+          .order('date', { ascending: true });
+          
+        if (error) {
+          console.error("Error fetching burndown data:", error);
+          // If error fetching data, generate it on the fly
+          const generatedData = generateBurndownData();
+          setChartData(generatedData);
+        } else if (data && data.length > 0) {
+          // Use cached data
+          const formattedData = data.map(item => ({
+            date: item.date,
+            ideal: item.ideal_points,
+            actual: item.actual_points,
+            formattedDate: format(parseISO(item.date), "MMM dd")
+          }));
+          setChartData(formattedData);
+        } else {
+          // No cached data, generate it
+          const generatedData = generateBurndownData();
+          setChartData(generatedData);
+          
+          // Only save if we have real data to save (not empty or default)
+          if (generatedData.length > 0 && projectId && user) {
+            try {
+              // Save in the background
+              const recordsToInsert = generatedData.map(item => ({
+                project_id: projectId,
+                user_id: user.id,
+                date: item.date,
+                ideal_points: item.ideal,
+                actual_points: item.actual
+              }));
+              
+              supabase
+                .from('burndown_data')
+                .upsert(recordsToInsert, { 
+                  onConflict: 'project_id,user_id,date',
+                  ignoreDuplicates: false
+                })
+                .then(({ error }) => {
+                  if (error) {
+                    console.log("Error saving burndown data:", error);
+                  }
+                });
+            } catch (error) {
+              console.log("Error saving burndown data:", error);
+            }
           }
         }
-        
-        // If we have cached data, use it first, then update in the background
-        if (cachedData && cachedData.length > 0) {
-          setChartData(cachedData);
-          setIsLoading(false);
-          
-          // Background update
-          setTimeout(async () => {
-            const burndownData = await generateBurndownData();
-            setChartData(burndownData);
-            
-            // Only try to save if data changed
-            if (JSON.stringify(burndownData) !== JSON.stringify(cachedData)) {
-              saveBurndownDataSafely(burndownData);
-            }
-          }, 500);
-        } else {
-          // No cached data, generate and display it immediately
-          const burndownData = await generateBurndownData();
-          setChartData(burndownData);
-          
-          // Save after a slight delay to ensure UI is responsive first
-          setTimeout(() => {
-            saveBurndownDataSafely(burndownData);
-          }, 500);
-        }
       } catch (error) {
-        console.error("Error generating burndown data:", error);
-        setError("Failed to load burndown chart data");
-        toast.error("Failed to load burndown chart data");
+        console.error("Error in burndown data handling:", error);
+        const generatedData = generateBurndownData();
+        setChartData(generatedData);
       } finally {
         setIsLoading(false);
       }
     };
     
     fetchBurndownData();
-  }, [projectId, user, tasks, sprints, generateBurndownData, saveBurndownDataSafely, isSaving]);
+  }, [projectId, user, tasks, sprints]);
   
   if (isLoading) {
     return (
@@ -279,15 +239,6 @@ const BurndownChart: React.FC = () => {
         <div className="h-[400px]">
           <Skeleton className="h-full w-full rounded-md" />
         </div>
-      </div>
-    );
-  }
-  
-  if (error) {
-    return (
-      <div className="scrum-card p-6 text-center">
-        <p className="text-red-500 mb-2">Error loading burndown data</p>
-        <p className="text-scrum-text-secondary">Please try refreshing the page</p>
       </div>
     );
   }

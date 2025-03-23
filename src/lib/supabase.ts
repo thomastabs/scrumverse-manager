@@ -487,8 +487,8 @@ export const fetchProjectChatMessages = async (projectId: string) => {
   try {
     const { data, error } = await supabase
       .from('chat_messages')
-      .select('id, project_id, user_id, username, message, created_at')
-      .eq('project_id', projectId)
+      .select('id, chat_messages.project_id, chat_messages.user_id, username, message, created_at')
+      .eq('chat_messages.project_id', projectId)
       .order('created_at', { ascending: true });
       
     if (error) {
@@ -503,7 +503,7 @@ export const fetchProjectChatMessages = async (projectId: string) => {
   }
 };
 
-// Add a new helper to send chat messages with explicit column references
+// Add a new helper to send chat messages with explicitly qualified column references
 export const sendProjectChatMessage = async (projectId: string, userId: string, username: string, message: string) => {
   try {
     const { data, error } = await supabase
@@ -514,7 +514,7 @@ export const sendProjectChatMessage = async (projectId: string, userId: string, 
         username: username,
         message: message
       })
-      .select('id')
+      .select('chat_messages.id')
       .single();
       
     if (error) {
@@ -528,3 +528,4 @@ export const sendProjectChatMessage = async (projectId: string, userId: string, 
     throw error;
   }
 };
+

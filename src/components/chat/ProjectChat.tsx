@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import { Send, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useParams } from "react-router-dom";
+import { fetchProjectChatMessages, sendProjectChatMessage } from "@/lib/supabase";
 
 interface ChatMessage {
   id: string;
@@ -28,8 +28,8 @@ const ProjectChat: React.FC = () => {
   useEffect(() => {
     fetchMessages();
     
-    // Set up realtime subscription
-    const channel = supabase
+    // Set up realtime subscription via the existing client
+    const channel = window.supabase
       .channel('chat-changes')
       .on(
         'postgres_changes',
@@ -37,7 +37,7 @@ const ProjectChat: React.FC = () => {
           event: 'INSERT',
           schema: 'public',
           table: 'chat_messages',
-          filter: `chat_messages.project_id=eq.${projectId}`
+          filter: `project_id=eq.${projectId}`
         },
         (payload) => {
           const newMessage = payload.new as ChatMessage;
@@ -47,7 +47,7 @@ const ProjectChat: React.FC = () => {
       .subscribe();
       
     return () => {
-      supabase.removeChannel(channel);
+      window.supabase.removeChannel(channel);
     };
   }, [projectId]);
   
@@ -57,16 +57,11 @@ const ProjectChat: React.FC = () => {
   }, [messages]);
   
   const fetchMessages = async () => {
+    if (!projectId) return;
+    
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('chat_messages')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: true });
-        
-      if (error) throw error;
-      
+      const data = await fetchProjectChatMessages(projectId);
       setMessages(data || []);
     } catch (error) {
       console.error("Error fetching messages:", error);
@@ -79,20 +74,16 @@ const ProjectChat: React.FC = () => {
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newMessage.trim() || !user) return;
+    if (!newMessage.trim() || !user || !projectId) return;
     
     setIsSending(true);
     try {
-      const { error } = await supabase
-        .from('chat_messages')
-        .insert({
-          project_id: projectId,
-          user_id: user.id,
-          username: user.username || user.email,
-          message: newMessage.trim()
-        });
-        
-      if (error) throw error;
+      await sendProjectChatMessage(
+        projectId,
+        user.id,
+        user.username || user.email,
+        newMessage.trim()
+      );
       
       setNewMessage("");
     } catch (error) {

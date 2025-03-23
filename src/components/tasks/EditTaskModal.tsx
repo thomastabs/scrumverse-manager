@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useProjects } from "@/context/ProjectContext";
-import { X, Edit, User } from "lucide-react";
+import { X, Edit, User, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { ProjectRole, Collaborator } from "@/types";
@@ -12,6 +12,10 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Button } from "@/components/ui/button";
+import { format, parseISO } from "date-fns";
 
 interface EditTaskModalProps {
   taskId: string;
@@ -31,6 +35,9 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
   const [projectOwner, setProjectOwner] = useState<{id: string, username: string} | null>(null);
   const [isLoadingCollaborators, setIsLoadingCollaborators] = useState(true);
   const [projectId, setProjectId] = useState<string | null>(null);
+  const [completionDate, setCompletionDate] = useState<Date | undefined>(undefined);
+  const [status, setStatus] = useState<string>("todo");
+  const [previousStatus, setPreviousStatus] = useState<string>("todo");
   
   const { getTask, updateTask } = useProjects();
   
@@ -38,15 +45,32 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
     const task = getTask(taskId);
     
     if (task) {
-      console.log("Loading task data:", task);
+      console.log("Loading task data in EditTaskModal:", task);
       setTitle(task.title);
       setDescription(task.description || "");
       setPriority(task.priority || "medium");
       setAssignedTo(task.assignedTo || task.assign_to || "");
       setStoryPoints(task.storyPoints || task.story_points || 1);
       setProjectId(task.projectId);
+      setStatus(task.status || "todo");
+      setPreviousStatus(task.status || "todo");
       
-      // If we have the project ID, fetch collaborators
+      // Handle completion date with more robust logging
+      const dateStr = task.completionDate || task.completion_date;
+      if (dateStr) {
+        console.log("Setting completion date from task:", dateStr);
+        try {
+          const parsedDate = parseISO(dateStr);
+          console.log("Parsed date:", parsedDate);
+          setCompletionDate(parsedDate);
+        } catch (err) {
+          console.error("Error parsing date:", err, "Date string was:", dateStr);
+        }
+      } else {
+        console.log("No completion date found in task");
+        setCompletionDate(undefined);
+      }
+      
       if (task.projectId) {
         fetchCollaborators(task.projectId);
       }
@@ -56,7 +80,6 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
   const fetchCollaborators = async (projectId: string) => {
     setIsLoadingCollaborators(true);
     try {
-      // Fetch project owner
       const { data: projectData, error: projectError } = await supabase
         .from('projects')
         .select('owner_id, title')
@@ -66,7 +89,6 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
       if (projectError) throw projectError;
       
       if (projectData) {
-        // Get owner's username
         const { data: ownerData, error: ownerError } = await supabase
           .from('users')
           .select('id, username')
@@ -78,7 +100,6 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
         }
       }
       
-      // Fetch collaborators
       const { data: collaboratorsData, error: collaboratorsError } = await supabase
         .from('collaborators')
         .select(`
@@ -127,7 +148,9 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
         description,
         priority,
         assignedTo,
-        storyPoints
+        storyPoints,
+        status,
+        completionDate: completionDate ? format(completionDate, "yyyy-MM-dd") : null
       };
       
       console.log("Updating task with:", updatedData);
@@ -142,7 +165,6 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
     }
   };
   
-  // Build assignee options from owner and collaborators
   const assigneeOptions = [
     ...(projectOwner ? [{ id: projectOwner.id, name: projectOwner.username }] : []),
     ...collaborators.map(collab => ({ 
@@ -227,6 +249,49 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
                 className="scrum-input"
                 required
               />
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block mb-2 text-sm">
+                Status <span className="text-destructive">*</span>
+              </label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="scrum-input"
+                required
+              >
+                <option value="todo">To Do</option>
+                <option value="in-progress">In Progress</option>
+                <option value="done">Done</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="block mb-2 text-sm">
+                Completion Date
+              </label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    className={`scrum-input flex justify-between items-center text-left font-normal ${!completionDate && "text-muted-foreground"}`}
+                  >
+                    {completionDate ? format(completionDate, "PPP") : "Select date"}
+                    <Calendar className="ml-auto h-4 w-4 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={completionDate}
+                    onSelect={setCompletionDate}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
           

@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 import { Collaborator, BurndownData as BurndownDataType } from '@/types';
 
@@ -145,7 +144,7 @@ export const findUserByEmailOrUsername = async (emailOrUsername: string) => {
 };
 
 // Helper function to add a collaborator to a project
-export const addCollaborator = async (projectId: string, userId: string, role: 'viewer' | 'member' | 'admin') => {
+export const addCollaborator = async (projectId: string, userId: string, role: 'product_owner' | 'team_member' | 'scrum_master') => {
   try {
     const { data, error } = await supabase
       .from('collaborators')
@@ -215,7 +214,7 @@ export const removeCollaborator = async (collaboratorId: string) => {
 };
 
 // Helper function to update a collaborator's role
-export const updateCollaboratorRole = async (collaboratorId: string, role: 'viewer' | 'member' | 'admin') => {
+export const updateCollaboratorRole = async (collaboratorId: string, role: 'product_owner' | 'team_member' | 'scrum_master') => {
   try {
     const { error } = await supabase
       .from('collaborators')
@@ -356,7 +355,7 @@ export const fetchCollaborativeBacklogTasks = async (projectId: string) => {
   }
 };
 
-// New helper to fetch burndown data for a project
+// Helper function to fetch burndown data for a project
 export const fetchBurndownData = async (projectId: string, userId: string): Promise<BurndownDataType[]> => {
   try {
     const { data, error } = await supabase
@@ -372,7 +371,8 @@ export const fetchBurndownData = async (projectId: string, userId: string): Prom
     return (data || []).map(item => ({
       date: item.date,
       ideal: item.ideal_points,
-      actual: item.actual_points
+      actual: item.actual_points,
+      formattedDate: item.date // This will be formatted in the component
     }));
   } catch (error) {
     console.error('Error fetching burndown data:', error);
@@ -380,41 +380,31 @@ export const fetchBurndownData = async (projectId: string, userId: string): Prom
   }
 };
 
-// Updated helper to upsert burndown data for a project
-// First deletes existing entries and then inserts new ones to avoid constraint errors
+// Improved helper to upsert burndown data with better handling
 export const upsertBurndownData = async (
   projectId: string, 
   userId: string,
   burndownData: BurndownDataType[]
 ): Promise<boolean> => {
   try {
-    // First delete existing data for this project/user
-    const { error: deleteError } = await supabase
-      .from('burndown_data')
-      .delete()
-      .eq('project_id', projectId)
-      .eq('user_id', userId);
-      
-    if (deleteError) {
-      console.error('Error deleting existing burndown data:', deleteError);
-      return false;
-    }
-    
-    // Then insert new data
+    // Process all data in a single operation using upsert
     const dbData = burndownData.map(item => ({
       project_id: projectId,
       user_id: userId,
       date: item.date,
-      ideal_points: item.ideal,
-      actual_points: item.actual
+      ideal_points: item.ideal || 0,
+      actual_points: item.actual !== null && item.actual !== undefined ? item.actual : 0
     }));
     
-    const { error: insertError } = await supabase
+    const { error } = await supabase
       .from('burndown_data')
-      .insert(dbData);
+      .upsert(dbData, { 
+        onConflict: 'project_id,user_id,date',
+        ignoreDuplicates: false // We want to update if there's a conflict
+      });
       
-    if (insertError) {
-      console.error('Error inserting burndown data:', insertError);
+    if (error) {
+      console.error('Error in burndown data upsert:', error);
       return false;
     }
     
@@ -422,5 +412,119 @@ export const upsertBurndownData = async (
   } catch (error) {
     console.error('Error upserting burndown data:', error);
     return false;
+  }
+};
+
+// Helper function to update a task with completion date - IMPROVED PERSISTENCE
+export const updateTaskWithCompletionDate = async (taskId: string, data: {
+  title?: string;
+  description?: string;
+  status?: string;
+  priority?: string;
+  story_points?: number;
+  assign_to?: string;
+  completion_date?: string | null;
+}) => {
+  try {
+    return await withRetry(async () => {
+      console.log("Updating task with completion date - Initial data:", JSON.stringify(data));
+      
+      // Get the current task data first
+      const { data: existingTask, error: fetchError } = await supabase
+        .from('tasks')
+        .select('status, completion_date')
+        .eq('id', taskId)
+        .single();
+        
+      if (fetchError) {
+        console.error('Error fetching existing task data:', fetchError);
+        throw fetchError;
+      }
+      
+      console.log("Existing task data:", JSON.stringify(existingTask));
+      
+      let updateData = { ...data };
+      
+      // Handle completion date logic:
+      // 1. If explicitly provided in update (even if null), use the new value
+      // 2. If changing to "done" status and no completion date exists, set to today
+      // 3. If task already has a completion date, preserve it
+      if ('completion_date' in data) {
+        // Case 1: Use explicitly provided completion date (even if null)
+        console.log(`Setting completion date to provided value: ${data.completion_date}`);
+        updateData.completion_date = data.completion_date;
+      } else if (data.status === 'done' && (!existingTask.completion_date || existingTask.status !== 'done')) {
+        // Case 2: Changing to done status without completion date - set to today
+        const todayDate = new Date().toISOString().split('T')[0];
+        console.log(`Setting completion date to today: ${todayDate}`);
+        updateData.completion_date = todayDate;
+      } else if (existingTask.completion_date && !('completion_date' in data)) {
+        // Case 3: Preserve existing completion date if it exists and not explicitly trying to change it
+        console.log(`Preserving existing completion date: ${existingTask.completion_date}`);
+        updateData.completion_date = existingTask.completion_date;
+      }
+      
+      console.log('Final update data:', JSON.stringify(updateData));
+      
+      const { data: updatedTask, error } = await supabase
+        .from('tasks')
+        .update(updateData)
+        .eq('id', taskId)
+        .select()
+        .single();
+        
+      if (error) throw error;
+      return updatedTask;
+    });
+  } catch (error) {
+    console.error('Error updating task with completion date:', error);
+    throw error;
+  }
+};
+
+// Let's add a new helper to fetch chat messages with qualified column names
+export const fetchProjectChatMessages = async (projectId: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .select('id, project_id, user_id, username, message, created_at')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: true });
+      
+    if (error) {
+      console.error('Error fetching chat messages:', error);
+      throw error;
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error('Error in fetchProjectChatMessages:', error);
+    return [];
+  }
+};
+
+// Add a new helper to send chat messages with explicit column references
+export const sendProjectChatMessage = async (projectId: string, userId: string, username: string, message: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .insert({
+        project_id: projectId,
+        user_id: userId,
+        username: username,
+        message: message
+      })
+      .select('id')
+      .single();
+      
+    if (error) {
+      console.error('Error sending chat message:', error);
+      throw error;
+    }
+    
+    return data?.id || null;
+  } catch (error) {
+    console.error('Error in sendProjectChatMessage:', error);
+    throw error;
   }
 };

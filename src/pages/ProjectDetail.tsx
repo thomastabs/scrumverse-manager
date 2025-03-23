@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useProjects } from "@/context/ProjectContext";
@@ -12,7 +11,7 @@ import { ProjectRole } from "@/types";
 
 const ProjectDetail: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
-  const { getProject, getSprintsByProject, getSprint, updateSprint, deleteSprint } = useProjects();
+  const { getProject, getSprintsByProject, getSprint, updateSprint } = useProjects();
   const { user } = useAuth();
   const navigate = useNavigate();
   
@@ -75,7 +74,7 @@ const ProjectDetail: React.FC = () => {
       // Check if user is owner
       if (project.ownerId === user.id) {
         setIsOwner(true);
-        setUserRole('admin'); // Owner has admin privileges
+        setUserRole('scrum_master'); // Owner has scrum master privileges
         return;
       }
       
@@ -142,21 +141,6 @@ const ProjectDetail: React.FC = () => {
     }
   };
   
-  const handleDeleteSprint = async () => {
-    if (!editingSprint) return;
-    
-    if (window.confirm("Are you sure you want to delete this sprint?")) {
-      try {
-        await deleteSprint(editingSprint);
-        toast.success("Sprint deleted successfully");
-        setEditingSprint(null);
-      } catch (error) {
-        toast.error("Failed to delete sprint");
-        console.error(error);
-      }
-    }
-  };
-  
   const handleViewSprintBoard = (sprintId: string) => {
     navigate(`/projects/${project.id}/sprint/${sprintId}`);
   };
@@ -182,9 +166,9 @@ const ProjectDetail: React.FC = () => {
     }
   };
   
-  // Check if user can modify sprints (member, admin or owner)
-  const canModifySprints = isOwner || userRole === 'admin' || userRole === 'member';
-  const isOwnerOrAdmin = isOwner || userRole === 'admin';
+  // Check if user can modify sprints (scrum_master or owner)
+  const canModifySprints = isOwner || userRole === 'scrum_master';
+  const isOwnerOrAdmin = isOwner || userRole === 'scrum_master';
   
   if (isLoading) {
     return (
@@ -336,15 +320,7 @@ const ProjectDetail: React.FC = () => {
                 </select>
               </div>
               
-              <div className="flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={handleDeleteSprint}
-                  className="text-destructive hover:text-destructive/80 transition-colors"
-                >
-                  Delete Sprint
-                </button>
-                
+              <div className="flex items-center justify-end">
                 <div className="flex gap-2">
                   <button
                     type="button"

@@ -17,7 +17,7 @@ const AddCollaboratorForm: React.FC<AddCollaboratorFormProps> = ({
 }) => {
   const { user } = useAuth();
   const [userIdentifier, setUserIdentifier] = useState("");
-  const [role, setRole] = useState<ProjectRole>("viewer");
+  const [role, setRole] = useState<ProjectRole>("team_member");
   const [loading, setLoading] = useState(false);
   
   const handleSubmit = async (e: React.FormEvent) => {
@@ -96,9 +96,9 @@ const AddCollaboratorForm: React.FC<AddCollaboratorFormProps> = ({
             onChange={(e) => setRole(e.target.value as ProjectRole)}
             className="scrum-input"
           >
-            <option value="viewer">Viewer - Can only view projects</option>
-            <option value="member">Member - Can create and manage sprints</option>
-            <option value="admin">Admin - Full access including backlog</option>
+            <option value="product_owner">Product Owner - Can view projects and manage product backlog</option>
+            <option value="team_member">Team Member - Can manage tasks in sprints</option>
+            <option value="scrum_master">Scrum Master - Can manage sprints and move items from backlog</option>
           </select>
         </div>
         

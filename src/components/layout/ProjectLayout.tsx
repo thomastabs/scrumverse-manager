@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect } from "react";
 import { Outlet, useParams, useNavigate, useLocation } from "react-router-dom";
 import { useProjects } from "@/context/ProjectContext";
 import { useAuth } from "@/context/AuthContext";
 import NavLink from "@/components/ui/NavLink";
-import { ArrowLeft, LayoutGrid, List, LineChart, Edit, Trash, Package, Users } from "lucide-react";
+import { ArrowLeft, LayoutGrid, List, LineChart, Edit, Trash, Package, Users, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import { fetchProjectCollaborators } from "@/lib/supabase";
 import { Collaborator, ProjectRole } from "@/types";
@@ -30,7 +31,7 @@ const ProjectLayout: React.FC = () => {
       // Check if user is owner
       if (project.ownerId === user.id) {
         setIsOwner(true);
-        setUserRole('admin'); // Owner has admin privileges
+        setUserRole('scrum_master'); // Owner has admin privileges
         setIsLoading(false);
         return;
       }
@@ -99,11 +100,14 @@ const ProjectLayout: React.FC = () => {
     }
   };
   
-  const canEditProject = isOwner || userRole === 'admin';
+  // Only project owners and scrum masters can edit the project
+  const canEditProject = isOwner || userRole === 'scrum_master';
   
-  const canAccessBacklog = isOwner || userRole === 'admin' || userRole === 'member';
+  // Scrum Masters, Team Members and Product Owners can access backlog
+  const canAccessBacklog = isOwner || userRole === 'scrum_master' || userRole === 'team_member' || userRole === 'product_owner';
   
-  const canModifySprints = isOwner || userRole === 'admin' || userRole === 'member';
+  // Only owners and scrum masters can modify sprints
+  const canModifySprints = isOwner || userRole === 'scrum_master';
   
   const handleBackToProjects = () => {
     if (project.isCollaboration) {
@@ -112,6 +116,14 @@ const ProjectLayout: React.FC = () => {
       navigate("/", { state: { activeTab: "projects" } });
     }
   };
+
+  // Check if we're on the edit page
+  const isEditPage = location.pathname.endsWith('/edit');
+  
+  // If we're on the edit page, just render the outlet
+  if (isEditPage) {
+    return <Outlet />;
+  }
   
   return (
     <div className="pt-16 min-h-screen animate-fade-in">
@@ -179,9 +191,14 @@ const ProjectLayout: React.FC = () => {
             <span>Burndown Chart</span>
           </NavLink>
           
+          <NavLink to={`/projects/${project.id}/team`}>
+            <Users className="h-4 w-4 mr-1" />
+            <span>Team</span>
+          </NavLink>
+          
           {isOwner && (
             <NavLink to={`/projects/${project.id}/collaborators`}>
-              <Users className="h-4 w-4 mr-1" />
+              <MessageSquare className="h-4 w-4 mr-1" />
               <span>Collaborators</span>
             </NavLink>
           )}
@@ -189,7 +206,9 @@ const ProjectLayout: React.FC = () => {
         
         {userRole && !isOwner && (
           <div className="text-xs text-scrum-text-secondary mb-2">
-            You have {userRole} access to this project
+            You have {userRole === 'product_owner' ? 'Product Owner' : 
+                      userRole === 'team_member' ? 'Team Member' : 
+                      userRole === 'scrum_master' ? 'Scrum Master' : userRole} access to this project
           </div>
         )}
       </div>

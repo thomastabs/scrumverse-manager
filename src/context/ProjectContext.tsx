@@ -674,16 +674,22 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       console.log('Updating task with data:', { id, ...task });
 
+      const updateData: any = {
+        title: task.title,
+        description: task.description,
+        status: task.status,
+        assign_to: task.assignedTo,
+        story_points: task.storyPoints,
+        sprint_id: task.sprintId
+      };
+      
+      if ('completionDate' in task) {
+        updateData.completion_date = task.completionDate;
+      }
+
       const { error } = await supabase
         .from('tasks')
-        .update({
-          title: task.title,
-          description: task.description,
-          status: task.status,
-          assign_to: task.assignedTo,
-          story_points: task.storyPoints,
-          sprint_id: task.sprintId
-        })
+        .update(updateData)
         .eq('id', id);
 
       if (error) {
@@ -696,6 +702,14 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         ...task,
         updatedAt: new Date().toISOString(),
       };
+
+      if (!('completionDate' in task) && existingTask.completionDate) {
+        updatedTask.completionDate = existingTask.completionDate;
+      }
+      
+      if (task.status === 'done' && existingTask.status !== 'done' && !updatedTask.completionDate) {
+        updatedTask.completionDate = new Date().toISOString().split('T')[0];
+      }
 
       setTasks(prev => prev.map(t => t.id === id ? updatedTask : t));
       

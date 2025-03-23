@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useProjects } from "@/context/ProjectContext";
 import { format, parseISO, differenceInDays, addDays } from "date-fns";
-import { Calendar, CheckCircle, Circle, Clock, Users, ListTodo } from "lucide-react";
+import { Calendar, CheckCircle, Circle, Clock, Users, ListTodo, Star } from "lucide-react";
 import { fetchCollaborativeProjectSprints, fetchCollaborativeSprintTasks } from "@/lib/supabase";
 
 const ProjectTimeline: React.FC = () => {
@@ -82,9 +81,9 @@ const ProjectTimeline: React.FC = () => {
       case "completed":
         return "bg-success";
       case "in-progress":
-        return "bg-purple-500";
+        return "bg-scrum-accent";
       default:
-        return "bg-purple-300";
+        return "bg-gray-400 dark:bg-purple-300";
     }
   };
   
@@ -93,9 +92,9 @@ const ProjectTimeline: React.FC = () => {
       case "completed":
         return <CheckCircle className="h-4 w-4 text-success" />;
       case "in-progress":
-        return <Clock className="h-4 w-4 text-purple-500" />;
+        return <Clock className="h-4 w-4 text-scrum-accent" />;
       default:
-        return <Circle className="h-4 w-4 text-purple-300" />;
+        return <Circle className="h-4 w-4 text-gray-400 dark:text-purple-300" />;
     }
   };
 
@@ -107,6 +106,22 @@ const ProjectTimeline: React.FC = () => {
   // Get completed task count for a sprint
   const getCompletedTaskCount = (sprintId: string) => {
     return tasks[sprintId]?.filter(task => task.status === "done" || task.status === "completed").length || 0;
+  };
+  
+  // Calculate total story points for a sprint
+  const getTotalStoryPoints = (sprintId: string) => {
+    return tasks[sprintId]?.reduce((sum, task) => {
+      const points = task.storyPoints || task.story_points || 0;
+      return sum + points;
+    }, 0) || 0;
+  };
+  
+  // Calculate completed story points for a sprint
+  const getCompletedStoryPoints = (sprintId: string) => {
+    return tasks[sprintId]?.reduce((sum, task) => {
+      const points = task.storyPoints || task.story_points || 0;
+      return (task.status === "done" || task.status === "completed") ? sum + points : sum;
+    }, 0) || 0;
   };
   
   // Normalize sprint data (handle different property names in local vs. database)
@@ -159,6 +174,10 @@ const ProjectTimeline: React.FC = () => {
                   const offsetPercentage = (offsetDays / totalDuration) * 100;
                   const widthPercentage = (duration / totalDuration) * 100;
                   
+                  // Story points for this sprint
+                  const totalPoints = getTotalStoryPoints(normalizedSprint.id);
+                  const completedPoints = getCompletedStoryPoints(normalizedSprint.id);
+                  
                   return (
                     <div key={normalizedSprint.id} className="flex items-center mb-6">
                       <div className="w-1/4 pr-4">
@@ -166,16 +185,22 @@ const ProjectTimeline: React.FC = () => {
                           {getStatusIcon(normalizedSprint.status)}
                           <span className="font-medium">{normalizedSprint.title}</span>
                         </div>
-                        <div className="flex items-center text-xs text-purple-400 mb-1">
+                        <div className="flex items-center text-xs text-scrum-text-secondary mb-1">
                           <Calendar className="h-3 w-3 mr-1" />
                           <span>
                             {format(new Date(normalizedSprint.startDate), "MMM d")} - {format(new Date(normalizedSprint.endDate), "MMM d, yyyy")}
                           </span>
                         </div>
-                        <div className="flex items-center text-xs text-purple-300">
+                        <div className="flex items-center text-xs text-scrum-text-secondary mb-1">
                           <ListTodo className="h-3 w-3 mr-1" />
                           <span>
                             {getCompletedTaskCount(normalizedSprint.id)}/{getSprintTaskCount(normalizedSprint.id)} tasks completed
+                          </span>
+                        </div>
+                        <div className="flex items-center text-xs text-amber-600 dark:text-amber-400">
+                          <Star className="h-3 w-3 mr-1" />
+                          <span>
+                            {completedPoints}/{totalPoints} story points achieved
                           </span>
                         </div>
                       </div>
@@ -206,6 +231,11 @@ const ProjectTimeline: React.FC = () => {
               const completedTasks = getCompletedTaskCount(normalizedSprint.id);
               const progressPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
               
+              // Story points data
+              const totalPoints = getTotalStoryPoints(normalizedSprint.id);
+              const completedPoints = getCompletedStoryPoints(normalizedSprint.id);
+              const pointsPercentage = totalPoints > 0 ? Math.round((completedPoints / totalPoints) * 100) : 0;
+              
               return (
                 <div key={normalizedSprint.id} className="p-4 bg-scrum-card border border-scrum-border rounded-lg">
                   <div className="flex items-center justify-between mb-2">
@@ -223,22 +253,42 @@ const ProjectTimeline: React.FC = () => {
                     {normalizedSprint.description}
                   </p>
                   
-                  <div className="flex items-center text-xs text-purple-400 mb-2">
+                  <div className="flex items-center text-xs text-scrum-text-secondary mb-2">
                     <Calendar className="h-3 w-3 mr-1" />
                     <span>
                       {format(new Date(normalizedSprint.startDate), "MMMM d, yyyy")} - {format(new Date(normalizedSprint.endDate), "MMMM d, yyyy")}
                     </span>
                   </div>
                   
+                  {/* Tasks progress */}
                   <div className="mb-2">
                     <div className="flex justify-between text-xs mb-1">
-                      <span className="text-purple-300">{completedTasks}/{totalTasks} tasks</span>
-                      <span className="text-purple-400">{progressPercentage}% completed</span>
+                      <span className="text-scrum-text-secondary">{completedTasks}/{totalTasks} tasks</span>
+                      <span className="text-scrum-text-secondary font-medium">{progressPercentage}% completed</span>
                     </div>
                     <div className="w-full bg-scrum-background h-1.5 rounded-full overflow-hidden">
                       <div 
-                        className="h-full bg-purple-500 rounded-full"
+                        className="h-full bg-scrum-accent rounded-full"
                         style={{ width: `${progressPercentage}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                  
+                  {/* Story points progress */}
+                  <div className="mt-3">
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-amber-600 dark:text-amber-400">
+                        <span className="flex items-center">
+                          <Star className="h-3 w-3 mr-1" />
+                          {completedPoints}/{totalPoints} story points
+                        </span>
+                      </span>
+                      <span className="text-amber-700 dark:text-amber-500 font-medium">{pointsPercentage}% achieved</span>
+                    </div>
+                    <div className="w-full bg-scrum-background h-1.5 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-amber-500 dark:bg-amber-400 rounded-full"
+                        style={{ width: `${pointsPercentage}%` }}
                       ></div>
                     </div>
                   </div>

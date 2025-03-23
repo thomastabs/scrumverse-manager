@@ -38,9 +38,6 @@ const Projects: React.FC = () => {
         {projects.length === 0 ? (
           <div className="text-center py-12 bg-scrum-card border border-scrum-border rounded-lg">
             <p className="text-scrum-text-secondary mb-4">You don't have any projects yet</p>
-            <div className="flex justify-center">
-              <NewProjectButton />
-            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

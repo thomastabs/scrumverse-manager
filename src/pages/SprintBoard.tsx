@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useProjects } from "@/context/ProjectContext";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
-import { Edit, Trash, CheckCircle, AlertTriangle, Plus, User } from "lucide-react";
+import { Edit, CheckCircle, AlertTriangle, User } from "lucide-react";
 import { toast } from "sonner";
 import TaskCard from "@/components/tasks/TaskCard";
 import EditTaskModal from "@/components/tasks/EditTaskModal";
@@ -34,7 +34,6 @@ const SprintBoard: React.FC = () => {
   );
   const [columnOrder, setColumnOrder] = useState<string[]>(["todo", "in-progress", "done"]);
   const [editingTask, setEditingTask] = useState<string | null>(null);
-  const [creatingTaskInColumn, setCreatingTaskInColumn] = useState<string | null>(null);
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
   const [tasks, setTasks] = useState<any[]>([]);
   const [projectId, setProjectId] = useState<string | null>(null);
@@ -106,7 +105,7 @@ const SprintBoard: React.FC = () => {
           } else if (projectData && projectData.owner_id === user.id) {
             console.log("User is project owner");
             setIsOwner(true);
-            setUserRole('admin');
+            setUserRole('scrum_master');
           } else {
             const { data: collaboratorData, error: collaboratorError } = await supabase
               .from('collaborators')
@@ -204,20 +203,6 @@ const SprintBoard: React.FC = () => {
         } catch (contextError) {
           console.log("Context update failed but Supabase update succeeded:", contextError);
         }
-        
-        if (destination.droppableId === "done") {
-          const allTasks = tasks;
-          const remainingTasks = allTasks.filter(
-            task => task.id !== draggableId && task.status !== "done"
-          );
-          
-          if (remainingTasks.length === 0 && sprint?.status === "in-progress") {
-            if (window.confirm("All tasks are completed! Would you like to mark this sprint as completed?")) {
-              await updateSprint(sprint.id, { status: "completed" });
-              toast.success("Sprint marked as completed!");
-            }
-          }
-        }
       } catch (error) {
         console.error("Error updating task status:", error);
         toast.error("Failed to update task status");
@@ -235,10 +220,6 @@ const SprintBoard: React.FC = () => {
         });
       }
     }
-  };
-  
-  const handleCreateTaskInColumn = (columnId: string) => {
-    setCreatingTaskInColumn(columnId);
   };
   
   const handleTaskDeleted = (taskId: string) => {
@@ -264,7 +245,7 @@ const SprintBoard: React.FC = () => {
   };
   
   const handleCompleteSprint = async () => {
-    if (!isOwner && userRole !== 'admin') {
+    if (!isOwner && userRole !== 'scrum_master') {
       toast.error("Only project owners and admins can complete sprints");
       return;
     }
@@ -308,8 +289,6 @@ const SprintBoard: React.FC = () => {
     }
   };
   
-  const canAddTasks = isOwner || userRole === 'admin' || userRole === 'member';
-  
   if (isLoading) {
     return (
       <div className="text-center py-12">
@@ -343,7 +322,7 @@ const SprintBoard: React.FC = () => {
         sprint={sprint}
         onCompleteSprint={handleCompleteSprint}
         allTasksCompleted={allTasksCompleted}
-        canComplete={isOwner || userRole === 'admin'}
+        canComplete={isOwner || userRole === 'scrum_master'}
       />
       
       <div className="flex items-center justify-between mb-4 mt-8">
@@ -366,18 +345,9 @@ const SprintBoard: React.FC = () => {
                 <div className="bg-scrum-card border border-scrum-border rounded-md h-full flex flex-col">
                   <div className="flex items-center justify-between p-3 border-b border-scrum-border">
                     <h4 className="font-medium text-sm">{column.title}</h4>
-                    {sprint.status !== "completed" && canAddTasks && (
-                      <button
-                        onClick={() => handleCreateTaskInColumn(columnId)}
-                        className="text-scrum-text-secondary hover:text-white transition-colors"
-                        title={`Add task to ${column.title}`}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </button>
-                    )}
                   </div>
                   
-                  <Droppable droppableId={columnId} isDropDisabled={sprint.status === "completed" || userRole === 'viewer'}>
+                  <Droppable droppableId={columnId} isDropDisabled={sprint.status === "completed" || userRole === 'product_owner'}>
                     {(provided, snapshot) => (
                       <div
                         ref={provided.innerRef}
@@ -390,7 +360,7 @@ const SprintBoard: React.FC = () => {
                               key={task.id}
                               draggableId={task.id}
                               index={index}
-                              isDragDisabled={sprint.status === "completed" || userRole === 'viewer'}
+                              isDragDisabled={sprint.status === "completed" || userRole === 'product_owner'}
                             >
                               {(provided, snapshot) => (
                                 <div
@@ -401,7 +371,7 @@ const SprintBoard: React.FC = () => {
                                 >
                                   <TaskCard
                                     task={task}
-                                    onEdit={canAddTasks ? () => setEditingTask(task.id) : undefined}
+                                    onEdit={(isOwner || userRole === 'scrum_master' || userRole === 'team_member') ? () => setEditingTask(task.id) : undefined}
                                     isSprintCompleted={sprint.status === "completed"}
                                     onTaskDeleted={handleTaskDeleted}
                                   />
@@ -432,21 +402,6 @@ const SprintBoard: React.FC = () => {
           taskId={editingTask}
           onClose={() => setEditingTask(null)}
         />
-      )}
-      
-      {creatingTaskInColumn && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in">
-          <div className="bg-scrum-card border border-scrum-border rounded-lg p-6 w-full max-w-lg animate-fade-up">
-            <NewTaskForm 
-              sprintId={sprint.id}
-              projectId={projectId || ''}
-              initialStatus={creatingTaskInColumn}
-              onClose={() => setCreatingTaskInColumn(null)}
-              setColumns={setColumns}
-              setTasks={setTasks}
-            />
-          </div>
-        </div>
       )}
       
       {isCompleteDialogOpen && (
@@ -532,304 +487,6 @@ const SprintHeader: React.FC<SprintHeaderProps> = ({
         )}
       </div>
     </div>
-  );
-};
-
-const NewTaskForm: React.FC<{
-  sprintId: string;
-  projectId: string;
-  initialStatus: string;
-  onClose: () => void;
-  setColumns: React.Dispatch<React.SetStateAction<{[key: string]: {title: string, taskIds: string[]}}>>;
-  setTasks: React.Dispatch<React.SetStateAction<any[]>>;
-}> = ({ sprintId, projectId, initialStatus, onClose, setColumns, setTasks }) => {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
-  const [assignedTo, setAssignedTo] = useState("");
-  const [storyPoints, setStoryPoints] = useState<number>(1);
-  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
-  const [projectOwner, setProjectOwner] = useState<{id: string, username: string} | null>(null);
-  const [isLoadingCollaborators, setIsLoadingCollaborators] = useState(true);
-  
-  const { addTask, getSprint } = useProjects();
-  const { user } = useAuth();
-  const sprint = getSprint(sprintId);
-  
-  useEffect(() => {
-    const fetchCollaborators = async () => {
-      setIsLoadingCollaborators(true);
-      try {
-        const { data: projectData, error: projectError } = await supabase
-          .from('projects')
-          .select('owner_id, title')
-          .eq('id', projectId)
-          .single();
-          
-        if (projectError) throw projectError;
-        
-        if (projectData) {
-          const { data: ownerData, error: ownerError } = await supabase
-            .from('users')
-            .select('id, username')
-            .eq('id', projectData.owner_id)
-            .single();
-            
-          if (!ownerError && ownerData) {
-            setProjectOwner(ownerData);
-          }
-        }
-        
-        const { data: collaboratorsData, error: collaboratorsError } = await supabase
-          .from('collaborators')
-          .select(`
-            id,
-            userId:user_id,
-            role,
-            createdAt:created_at,
-            users:user_id (
-              id,
-              username,
-              email
-            )
-          `)
-          .eq('project_id', projectId);
-        
-        if (collaboratorsError) throw collaboratorsError;
-        
-        const formattedCollaborators = collaboratorsData?.map(collab => ({
-          id: collab.id,
-          userId: collab.userId,
-          username: collab.users ? (collab.users as any).username || '' : '',
-          email: collab.users ? (collab.users as any).email || '' : '',
-          role: collab.role as ProjectRole,
-          createdAt: collab.createdAt
-        })) || [];
-        
-        setCollaborators(formattedCollaborators);
-        
-        if (user) {
-          if (projectOwner && projectOwner.id === user.id) {
-            setAssignedTo(projectOwner.username);
-          } else {
-            const currentUserAsCollaborator = formattedCollaborators.find(c => c.userId === user.id);
-            if (currentUserAsCollaborator) {
-              setAssignedTo(currentUserAsCollaborator.username);
-            }
-          }
-        }
-        
-      } catch (error) {
-        console.error("Error fetching collaborators:", error);
-      } finally {
-        setIsLoadingCollaborators(false);
-      }
-    };
-    
-    if (projectId) {
-      fetchCollaborators();
-    }
-  }, [projectId, user]);
-  
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!title.trim()) {
-      toast.error("Task title is required");
-      return;
-    }
-    
-    if (!description.trim()) {
-      toast.error("Task description is required");
-      return;
-    }
-    
-    if (!storyPoints || storyPoints < 1) {
-      toast.error("Task must have at least 1 story point");
-      return;
-    }
-    
-    if (!sprint) {
-      toast.error("Sprint not found");
-      return;
-    }
-    
-    try {
-      const newTask = await addTask({
-        title,
-        description,
-        sprintId,
-        projectId: sprint.projectId,
-        status: initialStatus as any,
-        assignedTo: assignedTo,
-        priority: priority,
-        storyPoints: storyPoints
-      });
-      
-      setColumns(prevColumns => {
-        const column = prevColumns[initialStatus];
-        if (column) {
-          return {
-            ...prevColumns,
-            [initialStatus]: {
-              ...column,
-              taskIds: [...column.taskIds, newTask.id]
-            }
-          };
-        }
-        return prevColumns;
-      });
-      
-      setTasks(prevTasks => [...prevTasks, newTask]);
-      
-      toast.success("Task created successfully");
-      onClose();
-    } catch (error) {
-      console.error("Error creating task:", error);
-      toast.error("Failed to create task");
-    }
-  };
-  
-  const assigneeOptions = [
-    ...(projectOwner ? [{ id: projectOwner.id, name: projectOwner.username }] : []),
-    ...collaborators.map(collab => ({ 
-      id: collab.userId,
-      name: collab.username 
-    }))
-  ];
-  
-  return (
-    <>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold">Create New Task</h2>
-        <button
-          onClick={onClose}
-          className="text-scrum-text-secondary hover:text-white"
-        >
-          <Trash className="h-5 w-5" />
-        </button>
-      </div>
-      
-      <form onSubmit={handleSubmit}>
-        <div className="mb-4">
-          <label className="block mb-2 text-sm">
-            Task Title <span className="text-destructive">*</span>
-          </label>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="scrum-input"
-            placeholder="e.g. Implement login functionality"
-            required
-            autoFocus
-          />
-        </div>
-        
-        <div className="mb-4">
-          <label className="block mb-2 text-sm">
-            Description <span className="text-destructive">*</span>
-          </label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="scrum-input"
-            placeholder="Task details and requirements"
-            rows={3}
-            required
-          />
-        </div>
-        
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="block mb-2 text-sm">
-              Priority <span className="text-destructive">*</span>
-            </label>
-            <select
-              value={priority}
-              onChange={(e) => setPriority(e.target.value as any)}
-              className="scrum-input"
-              required
-            >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-            </select>
-          </div>
-          
-          <div>
-            <label className="block mb-2 text-sm">
-              Story Points <span className="text-destructive">*</span>
-            </label>
-            <input
-              type="number"
-              min="1"
-              max="100"
-              value={storyPoints}
-              onChange={(e) => {
-                const value = parseInt(e.target.value);
-                setStoryPoints(value < 1 ? 1 : value);
-              }}
-              className="scrum-input"
-              placeholder="e.g. 5"
-              required
-            />
-          </div>
-        </div>
-        
-        <div className="mb-6">
-          <label className="block mb-2 text-sm">
-            Assigned To <span className="text-destructive">*</span>
-          </label>
-          {isLoadingCollaborators ? (
-            <div className="scrum-input flex items-center">
-              <div className="h-5 w-5 mr-2 rounded-full bg-scrum-accent/30 animate-pulse"></div>
-              <span className="text-scrum-text-secondary">Loading collaborators...</span>
-            </div>
-          ) : (
-            <Select 
-              value={assignedTo} 
-              onValueChange={setAssignedTo}
-              required
-            >
-              <SelectTrigger className="bg-scrum-background border-scrum-border text-scrum-text focus:ring-scrum-accent focus:border-scrum-border">
-                <SelectValue placeholder="Assign to..." />
-              </SelectTrigger>
-              <SelectContent className="bg-scrum-card border-scrum-border">
-                {assigneeOptions.map(option => (
-                  <SelectItem 
-                    key={option.id} 
-                    value={option.name}
-                    className="text-scrum-text focus:bg-scrum-accent/20 focus:text-scrum-text"
-                  >
-                    <div className="flex items-center">
-                      <User className="h-3.5 w-3.5 mr-2 text-scrum-text-secondary" />
-                      {option.name}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </div>
-        
-        <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="scrum-button-secondary"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="scrum-button"
-          >
-            Create Task
-          </button>
-        </div>
-      </form>
-    </>
   );
 };
 

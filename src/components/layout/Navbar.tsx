@@ -1,7 +1,7 @@
 
 import React from "react";
 import { Link } from "react-router-dom";
-import { LogOut, Check } from "lucide-react";
+import { LogOut, Check, Settings } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 const Navbar: React.FC = () => {
@@ -19,6 +19,13 @@ const Navbar: React.FC = () => {
       {user && (
         <div className="flex items-center gap-4">
           <span className="text-sm text-scrum-text-secondary">{user.email}</span>
+          <Link 
+            to="/settings" 
+            className="text-scrum-text-secondary hover:text-white transition-colors"
+            title="User Settings"
+          >
+            <Settings className="h-5 w-5" />
+          </Link>
           <div className="h-8 w-8 rounded-full bg-white text-scrum-card flex items-center justify-center font-semibold">
             {user.username?.charAt(0).toUpperCase() || "U"}
           </div>

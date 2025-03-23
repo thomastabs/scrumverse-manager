@@ -12,9 +12,3 @@ enable_row_level_security = true
 # Set up foreign key cascades for all tables
 [db]
 allow_cascade_delete = true
-cascading_deletes = true
-
-# Add unique constraint to burndown_data table
-# (this will be applied when running migrations)
-[tables.burndown_data.constraints]
-project_id_user_id_date_key = ["project_id", "user_id", "date"]

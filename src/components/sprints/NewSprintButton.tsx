@@ -1,10 +1,11 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useProjects } from "@/context/ProjectContext";
 import { useAuth } from "@/context/AuthContext";
 import { Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { format, addWeeks, isBefore, differenceInDays } from "date-fns";
 
 interface NewSprintButtonProps {
   projectId: string;
@@ -17,8 +18,74 @@ const NewSprintButton: React.FC<NewSprintButtonProps> = ({ projectId }) => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const { addSprint } = useProjects();
-  const { user } = useAuth();
+  const { user, isOwner, userRole } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<{
+    startDate?: string;
+    endDate?: string;
+  }>({});
+  
+  // Only owners and scrum masters can create sprints
+  const canCreateSprint = isOwner || userRole === 'scrum_master';
+  
+  // If user can't create sprints, don't render the button
+  if (!canCreateSprint) {
+    return null;
+  }
+  
+  // Set default start date to today and end date to 2 weeks from today
+  useEffect(() => {
+    const today = new Date();
+    const twoWeeksLater = addWeeks(today, 2);
+    
+    setStartDate(format(today, 'yyyy-MM-dd'));
+    setEndDate(format(twoWeeksLater, 'yyyy-MM-dd'));
+  }, [isModalOpen]);
+  
+  // Validate date changes
+  const validateDates = (start: string, end: string) => {
+    const errors: { startDate?: string; endDate?: string } = {};
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Set to beginning of day for comparison
+    
+    const startDateObj = new Date(start);
+    const endDateObj = new Date(end);
+    
+    // Start date validation - must be today or future
+    if (isBefore(startDateObj, today)) {
+      errors.startDate = "Start date must be today or a future date";
+    }
+    
+    // Duration validation - max 4 weeks (28 days)
+    if (start && end) {
+      const daysDifference = differenceInDays(endDateObj, startDateObj);
+      if (daysDifference > 28) {
+        errors.endDate = "Sprint duration cannot exceed 4 weeks (28 days)";
+      } else if (daysDifference < 1) {
+        errors.endDate = "End date must be after start date";
+      }
+    }
+    
+    return errors;
+  };
+  
+  const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newStartDate = e.target.value;
+    setStartDate(newStartDate);
+    
+    // Validate dates whenever start date changes
+    const errors = validateDates(newStartDate, endDate);
+    setValidationErrors(errors);
+  };
+  
+  const handleEndDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newEndDate = e.target.value;
+    setEndDate(newEndDate);
+    
+    // Validate dates whenever end date changes
+    const errors = validateDates(startDate, newEndDate);
+    setValidationErrors(errors);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,6 +107,15 @@ const NewSprintButton: React.FC<NewSprintButtonProps> = ({ projectId }) => {
     
     if (!endDate) {
       toast.error("End date is required");
+      return;
+    }
+    
+    // Final validation before submission
+    const errors = validateDates(startDate, endDate);
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      const errorMessages = Object.values(errors).join(", ");
+      toast.error(errorMessages);
       return;
     }
     
@@ -152,10 +228,14 @@ const NewSprintButton: React.FC<NewSprintButtonProps> = ({ projectId }) => {
                   <input
                     type="date"
                     value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="scrum-input"
+                    onChange={handleStartDateChange}
+                    className={`scrum-input ${validationErrors.startDate ? 'border-red-500' : ''}`}
+                    min={format(new Date(), 'yyyy-MM-dd')}
                     required
                   />
+                  {validationErrors.startDate && (
+                    <p className="mt-1 text-xs text-red-500">{validationErrors.startDate}</p>
+                  )}
                 </div>
                 
                 <div>
@@ -165,10 +245,13 @@ const NewSprintButton: React.FC<NewSprintButtonProps> = ({ projectId }) => {
                   <input
                     type="date"
                     value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="scrum-input"
+                    onChange={handleEndDateChange}
+                    className={`scrum-input ${validationErrors.endDate ? 'border-red-500' : ''}`}
                     required
                   />
+                  {validationErrors.endDate && (
+                    <p className="mt-1 text-xs text-red-500">{validationErrors.endDate}</p>
+                  )}
                 </div>
               </div>
 
@@ -183,7 +266,7 @@ const NewSprintButton: React.FC<NewSprintButtonProps> = ({ projectId }) => {
                 <button
                   type="submit"
                   className="scrum-button"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || Object.keys(validationErrors).length > 0}
                 >
                   {isSubmitting ? "Creating..." : "Create Sprint"}
                 </button>

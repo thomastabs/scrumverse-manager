@@ -1,4 +1,3 @@
-
 import type { Config } from "tailwindcss";
 
 export default {
@@ -58,15 +57,22 @@ export default {
 					foreground: '#ffffff'
 				},
 				scrum: {
-					DEFAULT: '#111111',
-					card: '#181818',
-					accent: '#222222',
-					highlight: '#2a2a2a',
-					border: '#333333',
+					DEFAULT: 'hsl(var(--scrum-background))',
+					card: 'hsl(var(--scrum-card))',
+					accent: 'hsl(var(--scrum-accent))',
+					highlight: 'hsl(var(--scrum-highlight))',
+					border: 'hsl(var(--scrum-border))',
 					text: {
-						primary: '#ffffff',
-						secondary: '#a0a0a0',
+						primary: 'hsl(var(--scrum-text-primary))',
+						secondary: 'hsl(var(--scrum-text-secondary))',
 						muted: '#777777'
+					},
+					chart: {
+						grid: 'hsl(var(--scrum-chart-grid))',
+						axis: 'hsl(var(--scrum-chart-axis))',
+						line1: 'hsl(var(--scrum-chart-line-1))',
+						line2: 'hsl(var(--scrum-chart-line-2))',
+						reference: 'hsl(var(--scrum-chart-reference))'
 					}
 				}
 			},

@@ -4,7 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useProjects } from "@/context/ProjectContext";
 import { ArrowLeft, Save, Calendar } from "lucide-react";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, differenceInDays, isBefore } from "date-fns";
 
 const EditSprint: React.FC = () => {
   const { projectId, sprintId } = useParams<{ projectId: string, sprintId: string }>();
@@ -18,6 +18,10 @@ const EditSprint: React.FC = () => {
   const [justification, setJustification] = useState("");
   const [originalEndDate, setOriginalEndDate] = useState("");
   const [requiresJustification, setRequiresJustification] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<{
+    startDate?: string;
+    endDate?: string;
+  }>({});
   
   const sprint = getSprint(sprintId || "");
   
@@ -31,6 +35,31 @@ const EditSprint: React.FC = () => {
     }
   }, [sprint]);
   
+  // Validate date changes for existing sprints
+  const validateDates = (start: string, end: string) => {
+    const errors: { startDate?: string; endDate?: string } = {};
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Set to beginning of day for comparison
+    
+    const startDateObj = new Date(start);
+    const endDateObj = new Date(end);
+    
+    // For an existing sprint, we only enforce the 4-week duration rule,
+    // not the "start date must be today or future" rule
+    
+    // Duration validation - max 4 weeks (28 days)
+    if (start && end) {
+      const daysDifference = differenceInDays(endDateObj, startDateObj);
+      if (daysDifference > 28) {
+        errors.endDate = "Sprint duration cannot exceed 4 weeks (28 days)";
+      } else if (daysDifference < 1) {
+        errors.endDate = "End date must be after start date";
+      }
+    }
+    
+    return errors;
+  };
+  
   useEffect(() => {
     // Check if end date has changed
     if (originalEndDate && endDate !== originalEndDate) {
@@ -39,7 +68,33 @@ const EditSprint: React.FC = () => {
       setRequiresJustification(false);
       setJustification("");
     }
-  }, [endDate, originalEndDate]);
+    
+    // Validate dates whenever they change
+    if (startDate && endDate) {
+      const errors = validateDates(startDate, endDate);
+      setValidationErrors(errors);
+    }
+  }, [endDate, originalEndDate, startDate]);
+  
+  const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newStartDate = e.target.value;
+    setStartDate(newStartDate);
+    
+    if (newStartDate && endDate) {
+      const errors = validateDates(newStartDate, endDate);
+      setValidationErrors(errors);
+    }
+  };
+  
+  const handleEndDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newEndDate = e.target.value;
+    setEndDate(newEndDate);
+    
+    if (startDate && newEndDate) {
+      const errors = validateDates(startDate, newEndDate);
+      setValidationErrors(errors);
+    }
+  };
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,6 +111,15 @@ const EditSprint: React.FC = () => {
     
     if (!endDate) {
       toast.error("End date is required");
+      return;
+    }
+    
+    // Final validation before submission
+    const errors = validateDates(startDate, endDate);
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      const errorMessages = Object.values(errors).join(", ");
+      toast.error(errorMessages);
       return;
     }
     
@@ -141,11 +205,14 @@ const EditSprint: React.FC = () => {
               <input
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="scrum-input pl-10"
+                onChange={handleStartDateChange}
+                className={`scrum-input pl-10 ${validationErrors.startDate ? 'border-red-500' : ''}`}
                 required
               />
               <Calendar className="absolute top-1/2 left-3 transform -translate-y-1/2 text-scrum-text-secondary h-4 w-4" />
+              {validationErrors.startDate && (
+                <p className="mt-1 text-xs text-red-500">{validationErrors.startDate}</p>
+              )}
             </div>
           </div>
           
@@ -157,11 +224,14 @@ const EditSprint: React.FC = () => {
               <input
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="scrum-input pl-10"
+                onChange={handleEndDateChange}
+                className={`scrum-input pl-10 ${validationErrors.endDate ? 'border-red-500' : ''}`}
                 required
               />
               <Calendar className="absolute top-1/2 left-3 transform -translate-y-1/2 text-scrum-text-secondary h-4 w-4" />
+              {validationErrors.endDate && (
+                <p className="mt-1 text-xs text-red-500">{validationErrors.endDate}</p>
+              )}
             </div>
           </div>
         </div>
@@ -186,6 +256,7 @@ const EditSprint: React.FC = () => {
           <button 
             type="submit" 
             className="scrum-button flex items-center gap-2"
+            disabled={Object.keys(validationErrors).length > 0}
           >
             <Save className="h-4 w-4" />
             Update Sprint

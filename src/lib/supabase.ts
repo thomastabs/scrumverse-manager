@@ -482,12 +482,12 @@ export const updateTaskWithCompletionDate = async (taskId: string, data: {
   }
 };
 
-// Let's add a new helper to fetch chat messages with unqualified column names
+// Helper function to fetch chat messages with explicitly qualified column references
 export const fetchProjectChatMessages = async (projectId: string) => {
   try {
     const { data, error } = await supabase
       .from('chat_messages')
-      .select('*')
+      .select('id, message, user_id, username, created_at, project_id')
       .eq('project_id', projectId)
       .order('created_at', { ascending: true });
       
@@ -503,18 +503,21 @@ export const fetchProjectChatMessages = async (projectId: string) => {
   }
 };
 
-// Add a new helper to send chat messages
+// Add a new helper to send chat messages with explicit column selection
 export const sendProjectChatMessage = async (projectId: string, userId: string, username: string, message: string) => {
   try {
+    // Explicitly create the object to insert to avoid any ambiguity
+    const messageData = {
+      project_id: projectId,
+      user_id: userId,
+      username: username,
+      message: message
+    };
+    
     const { data, error } = await supabase
       .from('chat_messages')
-      .insert({
-        project_id: projectId,
-        user_id: userId,
-        username: username,
-        message: message
-      })
-      .select()
+      .insert(messageData)
+      .select('id')
       .single();
       
     if (error) {

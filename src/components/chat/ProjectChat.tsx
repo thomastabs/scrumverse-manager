@@ -5,6 +5,7 @@ import { Send, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useParams } from "react-router-dom";
 import { fetchProjectChatMessages, sendProjectChatMessage } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ChatMessage {
   id: string;
@@ -28,8 +29,8 @@ const ProjectChat: React.FC = () => {
   useEffect(() => {
     fetchMessages();
     
-    // Set up realtime subscription via the existing client
-    const channel = window.supabase
+    // Set up realtime subscription via the supabase client
+    const channel = supabase
       .channel('chat-changes')
       .on(
         'postgres_changes',
@@ -47,7 +48,7 @@ const ProjectChat: React.FC = () => {
       .subscribe();
       
     return () => {
-      window.supabase.removeChannel(channel);
+      supabase.removeChannel(channel);
     };
   }, [projectId]);
   

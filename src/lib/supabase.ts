@@ -482,20 +482,23 @@ export const updateTaskWithCompletionDate = async (taskId: string, data: {
   }
 };
 
-// Helper function to fetch chat messages with explicitly qualified column references
+// Helper function to fetch chat messages with fully qualified column references
 export const fetchProjectChatMessages = async (projectId: string) => {
   try {
+    console.log('Fetching chat messages for project:', projectId);
+    
     const { data, error } = await supabase
       .from('chat_messages')
-      .select('id, message, user_id, username, created_at, project_id')
-      .eq('project_id', projectId)
-      .order('created_at', { ascending: true });
+      .select('chat_messages.id, chat_messages.message, chat_messages.user_id, chat_messages.username, chat_messages.created_at, chat_messages.project_id')
+      .eq('chat_messages.project_id', projectId)
+      .order('chat_messages.created_at', { ascending: true });
       
     if (error) {
       console.error('Error fetching chat messages:', error);
       throw error;
     }
     
+    console.log('Chat messages fetched successfully:', data);
     return data || [];
   } catch (error) {
     console.error('Error in fetchProjectChatMessages:', error);
@@ -503,10 +506,12 @@ export const fetchProjectChatMessages = async (projectId: string) => {
   }
 };
 
-// Add a new helper to send chat messages with explicit column selection
+// Add a new helper to send chat messages with explicit table qualification
 export const sendProjectChatMessage = async (projectId: string, userId: string, username: string, message: string) => {
   try {
-    // Explicitly create the object to insert to avoid any ambiguity
+    console.log('Sending chat message with data:', { projectId, userId, username, messageLength: message.length });
+    
+    // Explicitly create the object to insert
     const messageData = {
       project_id: projectId,
       user_id: userId,
@@ -517,7 +522,7 @@ export const sendProjectChatMessage = async (projectId: string, userId: string, 
     const { data, error } = await supabase
       .from('chat_messages')
       .insert(messageData)
-      .select('id')
+      .select('chat_messages.id')
       .single();
       
     if (error) {
@@ -525,6 +530,7 @@ export const sendProjectChatMessage = async (projectId: string, userId: string, 
       throw error;
     }
     
+    console.log('Chat message sent successfully with ID:', data?.id);
     return data?.id || null;
   } catch (error) {
     console.error('Error in sendProjectChatMessage:', error);

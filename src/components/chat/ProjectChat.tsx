@@ -27,6 +27,8 @@ const ProjectChat: React.FC = () => {
   
   // Fetch initial messages
   useEffect(() => {
+    if (!projectId) return;
+    
     fetchMessages();
     
     // Set up realtime subscription via the supabase client
@@ -38,7 +40,7 @@ const ProjectChat: React.FC = () => {
           event: 'INSERT',
           schema: 'public',
           table: 'chat_messages',
-          filter: `project_id=eq.${projectId}`
+          filter: `chat_messages.project_id=eq.${projectId}`
         },
         (payload) => {
           const newMessage = payload.new as ChatMessage;
@@ -63,7 +65,7 @@ const ProjectChat: React.FC = () => {
     setIsLoading(true);
     try {
       const data = await fetchProjectChatMessages(projectId);
-      setMessages(data || []);
+      setMessages(data as ChatMessage[]);
     } catch (error) {
       console.error("Error fetching messages:", error);
       toast.error("Failed to load chat messages");

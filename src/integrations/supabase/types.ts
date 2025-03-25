@@ -373,6 +373,15 @@ export type Database = {
         }
         Returns: string
       }
+      insert_chat_message: {
+        Args: {
+          p_project_id: string
+          p_user_id: string
+          p_username: string
+          p_message: string
+        }
+        Returns: string
+      }
       user_can_access_project: {
         Args: {
           project_id: string

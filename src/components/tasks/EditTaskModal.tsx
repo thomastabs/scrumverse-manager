@@ -20,11 +20,13 @@ import { format, parseISO } from "date-fns";
 interface EditTaskModalProps {
   taskId: string;
   onClose: () => void;
+  onTaskUpdated?: (updatedTask: any) => void; // Add callback for immediate updates
 }
 
 const EditTaskModal: React.FC<EditTaskModalProps> = ({ 
   taskId,
-  onClose
+  onClose,
+  onTaskUpdated
 }) => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -157,7 +159,7 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
       console.log("Updating task with data:", updatedData);
       
       // Use direct Supabase update to ensure completion_date is properly saved
-      const { error } = await supabase
+      const { data: updatedTask, error } = await supabase
         .from('tasks')
         .update({
           title: updatedData.title,
@@ -168,7 +170,9 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
           priority: updatedData.priority,
           completion_date: updatedData.completionDate
         })
-        .eq('id', taskId);
+        .eq('id', taskId)
+        .select()
+        .single();
         
       if (error) {
         console.error("Error updating task:", error);
@@ -177,6 +181,11 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
       
       // Also update the local state through context
       await updateTask(taskId, updatedData);
+      
+      // Call the onTaskUpdated callback with the updated task data if provided
+      if (onTaskUpdated && updatedTask) {
+        onTaskUpdated(updatedTask);
+      }
       
       toast.success("Task updated successfully");
       onClose();

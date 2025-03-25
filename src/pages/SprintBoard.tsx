@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useProjects } from "@/context/ProjectContext";
@@ -8,7 +9,7 @@ import TaskCard from "@/components/tasks/TaskCard";
 import EditTaskModal from "@/components/tasks/EditTaskModal";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
-import { ProjectRole, Collaborator } from "@/types";
+import { ProjectRole, Collaborator, Task } from "@/types";
 import { 
   Select,
   SelectContent,
@@ -244,6 +245,63 @@ const SprintBoard: React.FC = () => {
     setTasks(prevTasks => prevTasks.filter(task => task.id !== taskId));
   };
   
+  const handleTaskUpdated = (updatedTask: any) => {
+    // Update the tasks state with the new task data
+    setTasks(prevTasks => 
+      prevTasks.map(task => 
+        task.id === updatedTask.id ? {
+          ...task,
+          title: updatedTask.title,
+          description: updatedTask.description,
+          status: updatedTask.status,
+          assignedTo: updatedTask.assign_to,
+          assign_to: updatedTask.assign_to,
+          storyPoints: updatedTask.story_points,
+          story_points: updatedTask.story_points,
+          priority: updatedTask.priority,
+          completionDate: updatedTask.completion_date,
+          completion_date: updatedTask.completion_date
+        } : task
+      )
+    );
+    
+    console.log("Task updated in SprintBoard:", updatedTask);
+    
+    // Also update the columns state to ensure the task appears in the correct column
+    // This is crucial for immediate UI updates
+    setColumns(prevColumns => {
+      const newColumns = { ...prevColumns };
+      
+      // First, find which column currently contains the task
+      let currentColumnId: string | null = null;
+      
+      Object.keys(newColumns).forEach(columnId => {
+        if (newColumns[columnId].taskIds.includes(updatedTask.id)) {
+          currentColumnId = columnId;
+        }
+      });
+      
+      // If the task's status has changed, move it to the new column
+      if (currentColumnId && currentColumnId !== updatedTask.status) {
+        // Remove from current column
+        newColumns[currentColumnId] = {
+          ...newColumns[currentColumnId],
+          taskIds: newColumns[currentColumnId].taskIds.filter(id => id !== updatedTask.id)
+        };
+        
+        // Add to new column
+        if (newColumns[updatedTask.status]) {
+          newColumns[updatedTask.status] = {
+            ...newColumns[updatedTask.status],
+            taskIds: [...newColumns[updatedTask.status].taskIds, updatedTask.id]
+          };
+        }
+      }
+      
+      return newColumns;
+    });
+  };
+  
   const handleCompleteSprint = async () => {
     if (!isOwner && userRole !== 'scrum_master') {
       toast.error("Only project owners and admins can complete sprints");
@@ -401,6 +459,7 @@ const SprintBoard: React.FC = () => {
         <EditTaskModal
           taskId={editingTask}
           onClose={() => setEditingTask(null)}
+          onTaskUpdated={handleTaskUpdated}
         />
       )}
       
